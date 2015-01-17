@@ -20,206 +20,231 @@ def code(tree):
     return code_with_after(tree, "")
 
 def code_with_after(tree, after):
-    if type(tree) is ast.AST:
-        pass
-    elif type(tree) is ast.Add:
+    if type(tree) is ast.Add:
         return '+'
     elif type(tree) is ast.And:
-        pass
+        return ' and '
     elif type(tree) is ast.Assert:
-        pass
+        raise NotImplementedError("Not implemented: assert")
     elif type(tree) is ast.Assign:
-        fi = fields(tree)
-        variables = [code(target) for target in fi['targets']]
-        value = code(fi['value'])
-        if len(variables) is 1:
-            variable = variables[0]
-            return "(lambda %s: %s)(%s)" % (variable, after, value)
+        targets = [code(target) for target in tree.targets]
+        value = code(tree.value)
+        if len(targets) is 1:
+            target = targets[0]
+            return "(lambda %s: %s)(%s)" % (target, after, value)
         else:
-            raise StandardError("Multiple lefts in an assign not yet supported")
+            raise NotImplementedError("Multiple lefts in an assignment")
     elif type(tree) is ast.Attribute:
-        pass
+        return "%s.%s" % (code(tree.value), tree.attr)
     elif type(tree) is ast.AugAssign:
-        pass
+        target = code(tree.target)
+        op = code(tree.op)
+        value = code(tree.value)
+        return "(lambda %s: %s)(%s%s%s)" % (target, after, target, op, value)
     elif type(tree) is ast.AugLoad:
-        pass
+        raise StandardError("AugLoad should not appear in AST")
     elif type(tree) is ast.AugStore:
-        pass
+        raise StandardError("AugStore should not appear in AST")
     elif type(tree) is ast.BinOp:
-        fi = fields(tree)
-        return '(%s%s%s)' % (code(fi['left']), code(fi['op']), code(fi['right']))
+        return '(%s%s%s)' % (code(tree.left), code(tree.op), code(tree.right))
     elif type(tree) is ast.BitAnd:
-        pass
+        return '&'
     elif type(tree) is ast.BitOr:
-        pass
+        return '|'
     elif type(tree) is ast.BitXor:
-        pass
+        return '^'
     elif type(tree) is ast.BoolOp:
-        pass
+        return '(%s)' % code(tree.op).join([code(val) for val in tree.values])
     elif type(tree) is ast.Break:
-        pass
+        raise NotImplementedError("Not implemented: break")
     elif type(tree) is ast.Call:
-        pass
+        func = code(tree.func)
+        args = [code(arg) for arg in tree.args]
+        keywords = [code(kw) for kw in tree.keywords]
+        if tree.starargs is None:
+            starargs = []
+        else:
+            starargs = [code(tree.starargs)]
+        if tree.kwargs is None:
+            kwargs = []
+        else:
+            kwargs = [code(tree.kwargs)]
+        elems = args + keywords + starargs + kwargs
+        comma_sep_elems = ','.join(elems)
+        return '%s(%s)' % (func, comma_sep_elems)
     elif type(tree) is ast.ClassDef:
-        pass
+        raise NotImplementedError("Not implemented: classdef")
     elif type(tree) is ast.Compare:
-        pass
+        assert len(tree.ops) == len(tree.comparators)
+        return code(tree.left) + ''.join([code(tree.ops[i])+code(tree.comparators[i]) for i in range(len(tree.ops))])
     elif type(tree) is ast.Continue:
-        pass
+        raise NotImplementedError("Not implemented: continue")
     elif type(tree) is ast.Del:
-        pass
+        raise NotImplementedError("Not implemented: del")
     elif type(tree) is ast.Delete:
-        pass
+        raise NotImplementedError("Not implemented: delete")
     elif type(tree) is ast.Dict:
-        pass
+        raise NotImplementedError("Not implemented: dict")
     elif type(tree) is ast.DictComp:
-        pass
+        raise NotImplementedError("Not implemented: dict-comp")
     elif type(tree) is ast.Div:
-        pass
+        raise NotImplementedError("Not implemented: div")
     elif type(tree) is ast.Ellipsis:
-        pass
+        raise NotImplementedError("Not implemented: ellipsis")
     elif type(tree) is ast.Eq:
-        pass
+        return '=='
     elif type(tree) is ast.ExceptHandler:
-        pass
+        raise NotImplementedError("Not implemented: except")
     elif type(tree) is ast.Exec:
-        pass
+        raise NotImplementedError("Not implemented: exec")
     elif type(tree) is ast.Expr:
-        pass
+        code_to_exec = code(tree.value)
+        if after is not 'None':
+            return "(lambda ___: %s)(%s)" % (after, code_to_exec)
+        else:
+            return "%s" % code_to_exec
     elif type(tree) is ast.Expression:
-        pass
+        raise NotImplementedError("Not implemented: expression")
     elif type(tree) is ast.ExtSlice:
-        pass
+        raise NotImplementedError("Not implemented: extslice")
     elif type(tree) is ast.FloorDiv:
-        pass
+        raise NotImplementedError("Not implemented: floordiv")
     elif type(tree) is ast.For:
-        pass
+        raise NotImplementedError("Not implemented: for")
     elif type(tree) is ast.FunctionDef:
-        pass
+        raise NotImplementedError("Not implemented: functiondef")
     elif type(tree) is ast.GeneratorExp:
-        pass
+        raise NotImplementedError("Not implemented: generatorexp")
     elif type(tree) is ast.Global:
-        pass
+        raise NotImplementedError("Not implemented: global")
     elif type(tree) is ast.Gt:
-        pass
+        return '>'
     elif type(tree) is ast.GtE:
-        pass
+        return '>='
     elif type(tree) is ast.If:
-        pass
+        raise NotImplementedError("Not implemented: if")
     elif type(tree) is ast.IfExp:
-        pass
+        raise NotImplementedError("Not implemented: ifexp")
     elif type(tree) is ast.Import:
-        pass
+        raise NotImplementedError("Not implemented: import")
     elif type(tree) is ast.ImportFrom:
-        pass
+        raise NotImplementedError("Not implemented: importfrom")
     elif type(tree) is ast.In:
-        pass
+        return " in "
     elif type(tree) is ast.Index:
-        pass
+        return '[%s]' % code(tree.value)
     elif type(tree) is ast.Interactive:
-        pass
+        raise NotImplementedError("Not implemented: interactive")
     elif type(tree) is ast.Invert:
-        pass
+        return "~"
     elif type(tree) is ast.Is:
-        pass
+        return ' is '
     elif type(tree) is ast.IsNot:
-        pass
+        return ' is not '
     elif type(tree) is ast.LShift:
-        pass
+        return '<<'
+    elif type(tree) is ast.keyword:
+        return '%s=%s' % (tree.arg, code(tree.value))
     elif type(tree) is ast.Lambda:
-        pass
+        raise NotImplementedError("Not implemented: lambda")
     elif type(tree) is ast.List:
-        pass
+        raise NotImplementedError("Not implemented: list")
     elif type(tree) is ast.ListComp:
-        pass
+        raise NotImplementedError("Not implemented: listcomp")
     elif type(tree) is ast.Load:
-        pass
+        raise NotImplementedError("Not implemented: load")
     elif type(tree) is ast.Lt:
-        pass
+        return '<'
     elif type(tree) is ast.LtE:
-        pass
+        return '<='
     elif type(tree) is ast.Mod:
-        pass
+        return '%'
     elif type(tree) is ast.Module:
         ## Todo: look into sys.stdout instead
         return "from __future__ import print_function; " + many_to_one(child_nodes(tree))
     elif type(tree) is ast.Mult:
-        pass
+        return '*'
     elif type(tree) is ast.Name:
-        return fields(tree)['id']
+        return tree.id
     elif type(tree) is ast.NodeTransformer:
-        pass
+        raise NotImplementedError("Not implemented: nodetransformer")
     elif type(tree) is ast.NodeVisitor:
-        pass
+        raise NotImplementedError("Not implemented: nodevisitor")
     elif type(tree) is ast.Not:
-        pass
+        return 'not '
     elif type(tree) is ast.NotEq:
-        pass
+        return '!='
     elif type(tree) is ast.NotIn:
-        pass
+        return ' not in '
     elif type(tree) is ast.Num:
-        return str(fields(tree)['n'])
+        return str(tree.n)
     elif type(tree) is ast.Or:
-        pass
+        return ' or '
     elif type(tree) is ast.Param:
-        pass
+        raise NotImplementedError("Not implemented: param")
     elif type(tree) is ast.Pass:
-        pass
+        return after
     elif type(tree) is ast.Pow:
-        pass
+        return '**'
     elif type(tree) is ast.Print:
-        to_print = ','.join([code(x) for x in fields(tree)['values']])
+        to_print = ','.join([code(x) for x in tree.values])
         if after is not 'None':
             return "(lambda ___: %s)(print(%s))" % (after, to_print)
         else:
             return "print(%s)" % to_print
     elif type(tree) is ast.PyCF_ONLY_AST:
-        pass
+        raise NotImplementedError("Not implemented: pycf only ast")
     elif type(tree) is ast.RShift:
-        pass
+        return '>>'
     elif type(tree) is ast.Raise:
-        pass
+        raise NotImplementedError("Not implemented: raise")
     elif type(tree) is ast.Repr:
-        pass
+        raise NotImplementedError("Not implemented: repr")
     elif type(tree) is ast.Return:
         ## TODO: actually extract value
         return "42"
     elif type(tree) is ast.Set:
-        pass
+        raise NotImplementedError("Not implemented: set")
     elif type(tree) is ast.SetComp:
-        pass
+        raise NotImplementedError("Not implemented: setcomp")
     elif type(tree) is ast.Slice:
-        pass
+        raise NotImplementedError("Not implemented: slice")
     elif type(tree) is ast.Store:
-        pass
+        raise NotImplementedError("Not implemented: store")
     elif type(tree) is ast.Str:
-        pass
+        return repr(tree.s)
     elif type(tree) is ast.Sub:
-        pass
+        return '-'
     elif type(tree) is ast.Subscript:
-        pass
+        raise NotImplementedError("Not implemented: subscript")
     elif type(tree) is ast.Suite:
-        pass
+        raise NotImplementedError("Not implemented: suite")
     elif type(tree) is ast.TryExcept:
-        pass
+        raise NotImplementedError("Not implemented: try-except")
     elif type(tree) is ast.TryFinally:
-        pass
+        raise NotImplementedError("Not implemented: try-finally")
     elif type(tree) is ast.Tuple:
-        pass
+        elts = [code(elt) for elt in tree.elts]
+        if len(elts) is 0:
+            return '()'
+        elif len(elts) is 1:
+            return '(%s,)' % elts[0]
+        else:
+            return '(%s)' % (','.join(elts))
     elif type(tree) is ast.UAdd:
-        pass
+        return '+'
     elif type(tree) is ast.USub:
-        pass
+        return '-'
     elif type(tree) is ast.UnaryOp:
-        pass
+        return "(%s%s)" % (code(tree.op), code(tree.operand))
     elif type(tree) is ast.While:
-        pass
+        raise NotImplementedError("Not implemented: while")
     elif type(tree) is ast.With:
-        pass
+        raise NotImplementedError("Not implemented: with")
     elif type(tree) is ast.Yield:
-        pass
+        raise NotImplementedError("Not implemented: yield")
     else:
-        raise StandardError(type(tree))
+        raise NotImplementedError("Case not caught: %s" % str(type(tree)))
         
 
 if __name__ == '__main__':
@@ -229,19 +254,20 @@ if __name__ == '__main__':
         filename = sys.argv[0]        
 
     with open(filename, 'r') as fi:
-        source = fi.read()
-        t = ast.parse(source)
-        print code(t)
+        original = fi.read()
+        t = ast.parse(original)
+        print "---------- ORIGINAL ----------"
+        print original
+        onelined = code(t)
+        print "---------- ONELINED ----------"
+        print onelined
 
-
-"""
-            print fields(t)
-            if True:
-                ooi = fields(t)['body'][2]
-                binop = child_nodes(ooi)[1]
-                print binop
-                print fields(binop)
-
-
-"""
-
+        print "TESTING RESULTS: original/onelined"
+        try:
+            exec(original)
+        except Exception as e:
+            print e
+        try:
+            exec(onelined)
+        except Exception as e:
+            print e
