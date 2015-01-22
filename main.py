@@ -88,7 +88,7 @@ def code_with_after(tree, after):
     elif type(tree) is ast.DictComp:
         raise NotImplementedError("Not implemented: dict-comp")
     elif type(tree) is ast.Div:
-        raise NotImplementedError("Not implemented: div")
+        return '/'
     elif type(tree) is ast.Ellipsis:
         raise NotImplementedError("Not implemented: ellipsis")
     elif type(tree) is ast.Eq:
@@ -108,7 +108,7 @@ def code_with_after(tree, after):
     elif type(tree) is ast.ExtSlice:
         raise NotImplementedError("Not implemented: extslice")
     elif type(tree) is ast.FloorDiv:
-        raise NotImplementedError("Not implemented: floordiv")
+        return '//'
     elif type(tree) is ast.For:
         raise NotImplementedError("Not implemented: for")
     elif type(tree) is ast.FunctionDef:
@@ -161,7 +161,7 @@ def code_with_after(tree, after):
         return '%'
     elif type(tree) is ast.Module:
         ## Todo: look into sys.stdout instead
-        return "from __future__ import print_function; " + many_to_one(child_nodes(tree))
+        return "from __future__ import print_function, division; " + many_to_one(child_nodes(tree))
     elif type(tree) is ast.Mult:
         return '*'
     elif type(tree) is ast.Name:
