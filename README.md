@@ -1,7 +1,9 @@
 One-liner
 =========
 
-Convert any Python file into a single line of code with the same functionality.
+Convert any Python file into a single line of code with the same functionality. No newlines allowed.
+
+Only one semicolon allowed, and that's because I needed to invoke `from __future__ import print_function, division`.
 
 Installation and Usage
 ----------------------
@@ -22,6 +24,26 @@ After:
 
     (lambda x: (lambda y: print(x<y<5))(4))(3)
 
+Before:
+
+    def guess_my_number(n):
+        while True:
+            user_input = ""
+            while len(user_input)==0 or not user_input.isdigit():
+                user_input = raw_input("Enter a number to guess: ")
+            user_input = int(user_input)
+            if user_input > n:
+                print "Too big! Try again!"
+            elif user_input < n:
+                print "Too small! Try again!"
+            else:
+                print "You win!"
+                return True
+    guess_my_number(42)
+
+After:
+
+    # TODO
 
 FAQ
 ---
@@ -39,3 +61,9 @@ Open Problems
 * try/except/finally
 * raise/assert
 * classes and OOP
+* global variables
+* del
+* exec
+* with
+* yield
+* from foo import bar
