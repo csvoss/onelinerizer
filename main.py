@@ -96,7 +96,7 @@ def code_with_after(tree, after):
     elif type(tree) is ast.Expr:
         code_to_exec = code(tree.value)
         if after is not 'None':
-            return '(lambda ___: %s)(%s)' % (after, code_to_exec)
+            return '(lambda ___: %s)(%s)' % (after, code_to_exec) ## TODO: ensure ___ isn't taken
         else:
             return '%s' % code_to_exec
     elif type(tree) is ast.Expression:
@@ -108,7 +108,15 @@ def code_with_after(tree, after):
     elif type(tree) is ast.For:
         raise NotImplementedError('TODO: for')
     elif type(tree) is ast.FunctionDef:
-        raise NotImplementedError('TODO: functiondef')
+        arguments = code(tree.args) ## of the form 'lambda x, y, z:'
+        body = many_to_one(tree.body)
+        if len(tree.decorator_list) > 0:
+            raise NotImplementedError('TODO: decorators')
+        function_code = arguments + body
+        return "(lambda %s: %s)(%s)" % (tree.name, after, function_code)
+    elif type(tree) is ast.arguments:
+        ## return a string of the form 'lambda x, y, z:'
+        return 'lambda x:' # TODO
     elif type(tree) is ast.GeneratorExp:
         raise NotImplementedError('TODO: generatorexp')
     elif type(tree) is ast.Global:
@@ -120,7 +128,7 @@ def code_with_after(tree, after):
     elif type(tree) is ast.If:
         raise NotImplementedError('TODO: if')
     elif type(tree) is ast.IfExp:
-        raise NotImplementedError('TODO: ifexp')
+        return "(%s if %s else %s)" % (code(tree.body), code(tree.test), code(tree.orelse))
     elif type(tree) is ast.Import:
         raise NotImplementedError('TODO: import')
     elif type(tree) is ast.ImportFrom:
@@ -142,9 +150,10 @@ def code_with_after(tree, after):
     elif type(tree) is ast.keyword:
         return '%s=%s' % (tree.arg, code(tree.value))
     elif type(tree) is ast.Lambda:
-        raise NotImplementedError('TODO: lambda')
+        return code(tree.args) + code(tree.body)
     elif type(tree) is ast.List:
-        raise NotImplementedError('TODO: list')
+        elts = [code(elt) for elt in tree.elts]
+        return '[%s]' % (','.join(elts))
     elif type(tree) is ast.ListComp:
         return '[%s]' % (' '.join([code(tree.elt)] + [code(gen) for gen in tree.generators]))
     elif type(tree) is ast.Lt:
@@ -177,7 +186,7 @@ def code_with_after(tree, after):
     elif type(tree) is ast.Print:
         to_print = ','.join([code(x) for x in tree.values])
         if after is not 'None':
-            return '(lambda ___: %s)(print(%s))' % (after, to_print)
+            return '(lambda ___: %s)(print(%s))' % (after, to_print) ## TODO: ensure ___ isn't taken
         else:
             return 'print(%s)' % to_print
     elif type(tree) is ast.RShift:
@@ -231,7 +240,11 @@ def code_with_after(tree, after):
         raise NotImplementedError('Open problem: yield')
     else:
         raise NotImplementedError('Case not caught: %s' % str(type(tree)))
-        
+
+
+def to_one_line(original):
+    t = ast.parse(original)
+    return code(t)
 
 if __name__ == '__main__':
     try:
@@ -241,10 +254,10 @@ if __name__ == '__main__':
 
     with open(filename, 'r') as fi:
         original = fi.read()
-        t = ast.parse(original)
+        original = original.strip()
+        onelined = to_one_line(original)
         print '---------- ORIGINAL ----------'
-        print original.strip()
-        onelined = code(t)
+        print original
         print '---------- ONELINED ----------'
         print onelined
 
