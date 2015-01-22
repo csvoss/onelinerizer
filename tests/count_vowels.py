@@ -1,8 +1,4 @@
-def count_vowels(string):
-    s = 0
-    for c in string.lower():
-        if c in "aeiou":
-            s += 1
-    return s
+def count_vowels(x):
+    return sum([1 if i in "aeiou" else 0 for i in x.lower()])
 
 print count_vowels("Supercalifragilisticexpialidocious!")
