@@ -32,7 +32,7 @@ Yeah. I'm sorry. But on the other hand, why not?
 
 ### Can't you use semicolons?
 
-That would be against the spirit of this exercise. Why pass up a perfectly good excuse to abuse lambda functions, ternary expressions, list comprehensions, and even the occasional Y combinator? Never pass up an opportunity to use the Y combinator.
+That would be against the spirit of this exercise. Why pass up a perfectly good excuse to abuse [lambda functions](https://docs.python.org/2/reference/expressions.html#lambda), [ternary expressions](https://docs.python.org/2/reference/expressions.html#conditional-expressions), [list comprehensions](https://docs.python.org/2/tutorial/datastructures.html#list-comprehensions), and even the occasional [Y combinator](http://en.wikipedia.org/wiki/Fixed-point_combinator#Y_combinator)? Never pass up an opportunity to use the Y combinator.
 
 Open Problems
 -------------
