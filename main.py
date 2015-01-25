@@ -2,6 +2,8 @@ import ast
 import sys
 
 
+INIT_CODE = "(lambda __print: %s)(globals()['__builtins__'].__dict__['print'])"
+
 def fields(tree):
     return dict(list(ast.iter_fields(tree)))
 
@@ -88,7 +90,7 @@ def code_with_after(tree, after):
         return '{%s}' % ','.join([('%s:%s'%(code(k), code(v))) for (k,v) in zip(tree.keys, tree.values)])
     elif type(tree) is ast.DictComp:
         return '{%s}' % (' '.join([code(tree.key)+":"+code(tree.value)] + [code(gen) for gen in tree.generators]))
-    elif type(tree) is ast.Div:
+    elif type(tree) is ast.Div: ## TODO -- no from future division
         return '/'
     elif type(tree) is ast.Ellipsis:
         return '...'
@@ -141,7 +143,6 @@ def code_with_after(tree, after):
     elif type(tree) is ast.IfExp:
         return "(%s if %s else %s)" % (code(tree.body), code(tree.test), code(tree.orelse))
     elif type(tree) is ast.Import:
-        ## sys = __import__('sys')
         for alias in tree.names:
             if alias.asname is None:
                 alias.asname = alias.name
@@ -154,7 +155,7 @@ def code_with_after(tree, after):
     elif type(tree) is ast.Index:
         return '%s' % code(tree.value)
     elif type(tree) is ast.Interactive:
-        return 'from __future__ import print_function, division; ' + many_to_one(child_nodes(tree))
+        return INIT_CODE % many_to_one(child_nodes(tree))
     elif type(tree) is ast.Invert:
         return '~'
     elif type(tree) is ast.Is:
@@ -180,7 +181,7 @@ def code_with_after(tree, after):
         return '%'
     elif type(tree) is ast.Module:
         ## Todo: look into sys.stdout instead
-        return 'from __future__ import print_function, division; ' + many_to_one(child_nodes(tree))
+        return INIT_CODE % many_to_one(child_nodes(tree))
     elif type(tree) is ast.Mult:
         return '*'
     elif type(tree) is ast.Name:
@@ -202,9 +203,9 @@ def code_with_after(tree, after):
     elif type(tree) is ast.Print:
         to_print = ','.join([code(x) for x in tree.values])
         if after is not 'None':
-            return '(lambda ___: %s)(print(%s))' % (after, to_print) ## TODO: ensure ___ isn't taken
+            return '(lambda ___: %s)(__print(%s))' % (after, to_print) ## TODO: ensure ___ isn't taken
         else:
-            return 'print(%s)' % to_print
+            return '__print(%s)' % to_print
     elif type(tree) is ast.RShift:
         return '>>'
     elif type(tree) is ast.Raise:
@@ -229,7 +230,7 @@ def code_with_after(tree, after):
     elif type(tree) is ast.Subscript:
         return '%s[%s]' % (code(tree.value), code(tree.slice))
     elif type(tree) is ast.Suite:
-        return 'from __future__ import print_function, division; ' + many_to_one(child_nodes(tree))
+        return INIT_CODE % many_to_one(child_nodes(tree))
     elif type(tree) is ast.TryExcept:
         raise NotImplementedError('Open problem (intractable?): try-except')
     elif type(tree) is ast.TryFinally:
