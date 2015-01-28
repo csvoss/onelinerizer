@@ -1,6 +1,6 @@
 def print_decorator(f):
     def g(*args, **kwargs):
-        print "The name of the function is",f.__name__
+        print "Calling the function!"
         return f(*args, **kwargs)
     return g
 
