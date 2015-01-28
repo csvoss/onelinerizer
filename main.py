@@ -2,7 +2,7 @@ import ast
 import sys
 
 
-INIT_CODE = "(lambda __builtin__: (lambda __print, d: %s)(__builtin__.__dict__['print'],type('',(),{})))(__import__('__builtin__'))"
+INIT_CODE = "(lambda __builtin__: (lambda __print, d: %s)(__builtin__.__dict__['print'],type('StateDict',(),__builtin__.__dict__)()))(__import__('__builtin__'))"
 
 def fields(tree):
     return dict(list(ast.iter_fields(tree)))
@@ -10,14 +10,14 @@ def fields(tree):
 def child_nodes(tree):
     return list(ast.iter_child_nodes(tree))
 
-def many_to_one(trees):
+def many_to_one(trees, after='None'):
     # trees :: [Tree]
     # return :: string
     assert type(trees) is list
     if len(trees) is 0:
-        return 'None'
+        return after
     else:
-        return code_with_after(trees[0], many_to_one(trees[1:]))
+        return code_with_after(trees[0], many_to_one(trees[1:], after=after))
 
 def code(tree):
     return code_with_after(tree, 'None')
@@ -116,7 +116,7 @@ def code_with_after(tree, after):
         if len(tree.decorator_list) > 0:
             for decorator in tree.decorator_list:
                 function_code = "%s(%s)" % (code(decorator), function_code)
-        return "(lambda %s: %s)(%s)" % (tree.name, after, function_code)
+        return "[%s for d.%s in [(%s)]][0]" % (after, tree.name, function_code)
     elif type(tree) is ast.arguments:
         ## return something of the form ('lambda x, y, z=5, *args:', ['x','y','z','args'])
         padded_defaults = [None]*(len(tree.args)-len(tree.defaults)) + tree.defaults
@@ -140,14 +140,17 @@ def code_with_after(tree, after):
     elif type(tree) is ast.GtE:
         return '>='
     elif type(tree) is ast.If:
-        raise NotImplementedError('TODO: if')
+        test = code(tree.test)
+        body = many_to_one(tree.body, after='__after(d)')
+        orelse = many_to_one(tree.orelse, after='__after(d)')
+        return "(lambda __after: %s if %s else %s)(lambda d: %s)" % (body, test, orelse, after)
     elif type(tree) is ast.IfExp:
         return "(%s if %s else %s)" % (code(tree.body), code(tree.test), code(tree.orelse))
     elif type(tree) is ast.Import:
         for alias in tree.names:
             if alias.asname is None:
                 alias.asname = alias.name
-            after = "(lambda %s: %s)(__import__('%s'))" % (alias.asname, after, alias.name)
+            after = "[%s for d.%s in [__import__('%s')]][0]" % (after, alias.asname, alias.name)
         return after
     elif type(tree) is ast.ImportFrom:
         raise NotImplementedError('Open problem:: importfrom')
@@ -189,7 +192,7 @@ def code_with_after(tree, after):
     elif type(tree) is ast.Mult:
         return '*'
     elif type(tree) is ast.Name:
-        return tree.id
+        return 'd.'+tree.id
     elif type(tree) is ast.Not:
         return 'not '
     elif type(tree) is ast.NotEq:
@@ -276,29 +279,30 @@ if __name__ == '__main__':
         filename = sys.argv[1]
     except IndexError:
         print "Usage: python main.py filename" # TODO: stderr instead
-    try:
-        with open(filename, 'r') as fi:
-            if VERBOSE:
-                original = fi.read().strip()
-                onelined = to_one_line(original)
+    else:
+        try:
+            with open(filename, 'r') as fi:
+                if VERBOSE:
+                    original = fi.read().strip()
+                    onelined = to_one_line(original)
 
-                print '--- ORIGINAL ---------------------------------'
-                print original
-                print '----------------------------------------------'
-                try:
-                    exec(original)
-                except Exception as e:
-                    print e
-                print ''
-                print '--- ONELINED ---------------------------------'
-                print onelined
-                print '----------------------------------------------'
-                try:
-                    exec(onelined)
-                except Exception as e:
-                    print e
-            else:
-                raise NotImplementedError("Non-testing functionality")
-    except IOError:
-        print "Input file not found: %s" % filename  # TODO: stderr instead
+                    print '--- ORIGINAL ---------------------------------'
+                    print original
+                    print '----------------------------------------------'
+                    try:
+                        exec(original)
+                    except Exception as e:
+                        print e
+                    print ''
+                    print '--- ONELINED ---------------------------------'
+                    print onelined
+                    print '----------------------------------------------'
+                    try:
+                        exec(onelined)
+                    except Exception as e:
+                        print e
+                else:
+                    raise NotImplementedError("Non-testing functionality")
+        except IOError:
+            print "Input file not found: %s" % filename  # TODO: stderr instead
 
