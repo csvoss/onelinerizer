@@ -21,21 +21,32 @@ def make_test(filename):
                              msg="Onelined: "+onelined)
     return new_test
 
+class FakeStdin(object):
+    def __init__(self):
+        pass
+    def readline(self):
+        return "test"
+
 def capture_exec(code_string):
     new_stdout = StringIO()
     old_stdout = sys.stdout
+    old_stdin = sys.stdin
     sys.stdout = new_stdout
+    sys.stdin = FakeStdin()
     try:
         exec code_string
     except Exception as e:
         raise type(e)(e.message + ', with code: ' + code_string)
     sys.stdout = old_stdout
+    sys.stdin = old_stdin
+    return new_stdout.getvalue()
 
 for subdir, dirs, files in os.walk(TEST_DIRECTORY):
     for filename in files:
-        setattr(TestOneLine,
-                'test_%s' % filename.split('.')[0],
-                make_test(os.path.join(subdir, filename)))
+        if not 'unimplemented' in subdir:
+            setattr(TestOneLine,
+                    'test_%s' % filename.split('.')[0],
+                    make_test(os.path.join(subdir, filename)))
 
 if __name__ == '__main__':
     unittest.main()
