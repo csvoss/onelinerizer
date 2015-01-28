@@ -1,9 +1,8 @@
 One-liner
 =========
 
-Convert any Python file into a single line of code with the same functionality. No newlines allowed.
+Convert any Python file into a single line of code with the same functionality. No newlines allowed. No semicolons allowed, either.
 
-Only one semicolon allowed, and that's because I needed to invoke `from __future__ import print_function, division`.
 
 Installation and Usage
 ----------------------
@@ -55,6 +54,12 @@ Yeah. I'm sorry. But on the other hand, why not?
 ### Can't you use semicolons?
 
 That would be against the spirit of this exercise. Why pass up a perfectly good excuse to abuse [lambda functions](https://docs.python.org/2/reference/expressions.html#lambda), [ternary expressions](https://docs.python.org/2/reference/expressions.html#conditional-expressions), [list comprehensions](https://docs.python.org/2/tutorial/datastructures.html#list-comprehensions), and even the occasional [Y combinator](http://en.wikipedia.org/wiki/Fixed-point_combinator#Y_combinator)? Never pass up an opportunity to use the Y combinator.
+
+Analysis
+--------
+### Space
+
+O(n). No code is ever duplicated, so the one-lined code produced is linear in the size of the input code.
 
 Open Problems
 -------------
