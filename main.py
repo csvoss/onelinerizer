@@ -2,7 +2,7 @@ import ast
 import sys
 
 
-INIT_CODE = "(lambda __print: %s)(globals()['__builtins__'].__dict__['print'])"
+INIT_CODE = "(lambda __builtin__: (lambda __print, d: %s)(__builtin__.__dict__['print'],type('',(),{})))(__import__('__builtin__'))"
 
 def fields(tree):
     return dict(list(ast.iter_fields(tree)))
@@ -266,29 +266,39 @@ def to_one_line(original):
     t = ast.parse(original)
     return code(t)
 
+VERBOSE = True ## TODO: Use command line arg instead
+
 if __name__ == '__main__':
+
+    ## TODO: Put the output in a new file instead of just printing like this.
+
     try:
         filename = sys.argv[1]
     except IndexError:
-        filename = sys.argv[0]        
+        print "Usage: python main.py filename" # TODO: stderr instead
+    try:
+        with open(filename, 'r') as fi:
+            if VERBOSE:
+                original = fi.read().strip()
+                onelined = to_one_line(original)
 
-    with open(filename, 'r') as fi:
-        original = fi.read()
-        original = original.strip()
-        onelined = to_one_line(original)
-        print '---------- ORIGINAL ----------'
-        print original
-        print '---------- ONELINED ----------'
-        print onelined
+                print '--- ORIGINAL ---------------------------------'
+                print original
+                print '----------------------------------------------'
+                try:
+                    exec(original)
+                except Exception as e:
+                    print e
+                print ''
+                print '--- ONELINED ---------------------------------'
+                print onelined
+                print '----------------------------------------------'
+                try:
+                    exec(onelined)
+                except Exception as e:
+                    print e
+            else:
+                raise NotImplementedError("Non-testing functionality")
+    except IOError:
+        print "Input file not found: %s" % filename  # TODO: stderr instead
 
-        print '\nTESTING RESULTS:\n'
-        print '---------- ORIGINAL ----------'
-        try:
-            exec(original)
-        except Exception as e:
-            print e
-        print '---------- ONELINED ----------'
-        try:
-            exec(onelined)
-        except Exception as e:
-            print e
