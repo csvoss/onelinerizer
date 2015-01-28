@@ -32,18 +32,15 @@ def code_with_after(tree, after):
     elif type(tree) is ast.Assign:
         targets = [code(target) for target in tree.targets]
         value = code(tree.value)
-        if len(targets) is 1:
-            target = targets[0]
-            return '(lambda %s: %s)(%s)' % (target, after, value)
-        else:
-            raise NotImplementedError('TODO: Multiple lefts in an assignment')
+        targets = ','.join(targets)
+        return '[%s for %s in [(%s)]][0]' % (after, targets, value)
     elif type(tree) is ast.Attribute:
         return '%s.%s' % (code(tree.value), tree.attr)
     elif type(tree) is ast.AugAssign:
         target = code(tree.target)
         op = code(tree.op)
         value = code(tree.value)
-        return '(lambda %s: %s)(%s%s%s)' % (target, after, target, op, value)
+        return '[%s for %s in [%s%s%s]][0]' % (after, target, target, op, value)
     elif type(tree) is ast.BinOp:
         return '(%s%s%s)' % (code(tree.left), code(tree.op), code(tree.right))
     elif type(tree) is ast.BitAnd:
@@ -112,24 +109,28 @@ def code_with_after(tree, after):
     elif type(tree) is ast.For:
         raise NotImplementedError('TODO: for')
     elif type(tree) is ast.FunctionDef:
-        arguments = code(tree.args) ## of the form 'lambda x, y, z:'
+        args, arg_names = code(tree.args) ## of the form ('lambda x, y, z=5, *args:', ['x','y','z','args'])
         body = many_to_one(tree.body)
-        function_code = arguments + body
+        body = '[%s for %s in [(%s)]][0]' % (body, 'd.'+',d.'.join(arg_names), ','.join(arg_names)) ## apply lets for d.arguments
+        function_code = args + body
         if len(tree.decorator_list) > 0:
             for decorator in tree.decorator_list:
                 function_code = "%s(%s)" % (code(decorator), function_code)
         return "(lambda %s: %s)(%s)" % (tree.name, after, function_code)
     elif type(tree) is ast.arguments:
-        ## return something of the form 'lambda x, y, z=5:'
+        ## return something of the form ('lambda x, y, z=5, *args:', ['x','y','z','args'])
         padded_defaults = [None]*(len(tree.args)-len(tree.defaults)) + tree.defaults
+        arg_names = [arg.id for arg in tree.args]
         args = zip(padded_defaults, tree.args)
-        args = [code(a) if d is None else code(a)+"="+code(d) for (d,a) in args]
+        args = [a.id if d is None else a.id+"="+code(d) for (d,a) in args] ## TODO: str or code?
         if tree.vararg is not None:
             args += ["*" + tree.vararg]
+            arg_names += [tree.vararg]
         if tree.kwarg is not None:
             args += ["**" + tree.kwarg]
+            arg_names += [tree.kwarg]
         args = ",".join(args)
-        return "lambda %s:" % (args)
+        return ("lambda %s:" % (args), arg_names)
     elif type(tree) is ast.GeneratorExp:
         raise NotImplementedError('TODO: generatorexp')
     elif type(tree) is ast.Global:
@@ -167,7 +168,10 @@ def code_with_after(tree, after):
     elif type(tree) is ast.keyword:
         return '%s=%s' % (tree.arg, code(tree.value))
     elif type(tree) is ast.Lambda:
-        return code(tree.args) + code(tree.body)
+        args, arg_names = code(tree.args)
+        body = code(tree.body)
+        body = '[%s for %s in [(%s)]][0]' % (body, 'd.'+',d.'.join(arg_names), ','.join(arg_names)) ## apply lets for d.arguments
+        return '(' + args + body + ')'
     elif type(tree) is ast.List:
         elts = [code(elt) for elt in tree.elts]
         return '[%s]' % (','.join(elts))
