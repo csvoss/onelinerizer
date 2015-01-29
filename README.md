@@ -16,13 +16,13 @@ Installation and Usage
 Examples
 --------
 
-Before:
+** Before:**
 
     x = 3
     y = 4
     print (x < y < 5)
 
-After:
+**After:**
 
     (lambda __builtin__: (lambda __print, __y, d: [[__print(d.x<d.y<5) for d.y in [(4)]][0] for d.x in [(3)]][0])(__builtin__.__dict__['print'],(lambda f: (lambda x: x(x))(lambda y: f(lambda *args: y(y)(*args)))),type('StateDict',(),__builtin__.__dict__)()))(__import__('__builtin__'))
 
@@ -30,13 +30,13 @@ That line looks complicated, because we need some tricks to import the print fun
 
      (lambda x: (lambda y: print(x<y<5))(4))(3)
 
-Before:
+**Before:**
 
     def f(x):
         return x+5
     print f(13)
 
-After:
+**After:**
 
     (lambda __builtin__: (lambda __print, __y, d: [__print(d.f(13)) for d.f in [(lambda x:[(d.x+5) for d.x in [(x)]][0])]][0])(__builtin__.__dict__['print'],(lambda f: (lambda x: x(x))(lambda y: f(lambda *args: y(y)(*args)))),type('StateDict',(),__builtin__.__dict__)()))(__import__('__builtin__'))
 
@@ -44,7 +44,7 @@ After:
 
     (lambda f: print(f(13)))(lambda x: x+5)
 
-Before:
+**Before:**
 
     def guess_my_number(n):
         while True:
@@ -62,7 +62,7 @@ Before:
                     return True
     guess_my_number(42)
 
-After:
+**After:**
 
     (lambda __builtin__: (lambda __print, __y, d: [(lambda ___: None)(d.guess_my_number(42)) for d.guess_my_number in [(lambda n:[(__y(lambda __this: (lambda d: (lambda __after: [(lambda __after: (lambda ___: __after(d))(__print('Not a positive integer!')) if (d.len(d.user_input)==0 or (not d.user_input.isdigit())) else [(lambda __after: (lambda ___: __after(d))(__print('Too big! Try again!')) if d.user_input>d.n else (lambda __after: (lambda ___: __after(d))(__print('Too small! Try again!')) if d.user_input<d.n else (lambda ___: d.True)(__print('You win!')))(lambda d: __after(d)))(lambda d: __after(d)) for d.user_input in [(d.int(d.user_input))]][0])(lambda d: __this(d)) for d.user_input in [(d.raw_input('Enter a positive integer to guess: '))]][0] if d.True else __after(d))(lambda d: None))))(d) for d.n in [(n)]][0])]][0])(__builtin__.__dict__['print'],(lambda f: (lambda x: x(x))(lambda y: f(lambda *args: y(y)(*args)))),type('StateDict',(),__builtin__.__dict__)()))(__import__('__builtin__'))
 
@@ -82,6 +82,12 @@ Analysis
 ### Space
 
 *O(n)*. No code is ever duplicated, so the one-lined code produced is linear in the size of the input code.
+
+### Time
+
+I'm guessing it's slower, but no more than linearly so; I have yet to analyze this.
+
+Since while loops and for loops are implemented with recursion, you might encounter unfortunate maximum-recursion-depth-exceeded errors.
 
 Open Problems
 -------------
