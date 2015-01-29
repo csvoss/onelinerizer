@@ -23,9 +23,10 @@ def make_test(filename):
 
 class FakeStdin(object):
     def __init__(self):
-        pass
+        self.counter = 0
     def readline(self):
-        return "test"
+        self.counter += 1
+        return str(self.counter)
 
 def capture_exec(code_string):
     new_stdout = StringIO()
