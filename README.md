@@ -1,7 +1,11 @@
 One-liner
 =========
 
-Convert any Python file into a single line of code with the same functionality. No newlines allowed. No semicolons allowed, either.
+Convert any Python file into a single line of code which has the same functionality.
+
+No newlines allowed.
+
+No semicolons allowed, either.
 
 Installation and Usage
 ----------------------
@@ -22,7 +26,7 @@ After:
 
     (lambda __builtin__: (lambda __print, __y, d: [[__print(d.x<d.y<5) for d.y in [(4)]][0] for d.x in [(3)]][0])(__builtin__.__dict__['print'],(lambda f: (lambda x: x(x))(lambda y: f(lambda *args: y(y)(*args)))),type('StateDict',(),__builtin__.__dict__)()))(__import__('__builtin__'))
 
-That line looks complicated, because we need some tricks to import the print function and to support some other complicated features. For a program as simple as this one, you can think of it as working this way:
+That line looks complicated, because we need some tricks to import the print function and to support certain tricks which are needed for more complicated features such as `while` and `if`. For a program as simple as this one, though, you can think of it as working this way:
 
      (lambda x: (lambda y: print(x<y<5))(4))(3)
 
@@ -77,7 +81,7 @@ Analysis
 --------
 ### Space
 
-O(n). No code is ever duplicated, so the one-lined code produced is linear in the size of the input code.
+*O(n)*. No code is ever duplicated, so the one-lined code produced is linear in the size of the input code.
 
 Open Problems
 -------------
