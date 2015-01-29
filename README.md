@@ -3,7 +3,6 @@ One-liner
 
 Convert any Python file into a single line of code with the same functionality. No newlines allowed. No semicolons allowed, either.
 
-
 Installation and Usage
 ----------------------
 
@@ -21,7 +20,25 @@ Before:
 
 After:
 
-    (lambda x: (lambda y: print(x<y<5))(4))(3)
+    (lambda __builtin__: (lambda __print, __y, d: [[__print(d.x<d.y<5) for d.y in [(4)]][0] for d.x in [(3)]][0])(__builtin__.__dict__['print'],(lambda f: (lambda x: x(x))(lambda y: f(lambda *args: y(y)(*args)))),type('StateDict',(),__builtin__.__dict__)()))(__import__('__builtin__'))
+
+That line looks complicated, because we need some tricks to import the print function and to support some other complicated features. For a program as simple as this one, you can think of it as working this way:
+
+     (lambda x: (lambda y: print(x<y<5))(4))(3)
+
+Before:
+
+    def f(x):
+        return x+5
+    print f(13)
+
+After:
+
+    (lambda __builtin__: (lambda __print, __y, d: [__print(d.f(13)) for d.f in [(lambda x:[(d.x+5) for d.x in [(x)]][0])]][0])(__builtin__.__dict__['print'],(lambda f: (lambda x: x(x))(lambda y: f(lambda *args: y(y)(*args)))),type('StateDict',(),__builtin__.__dict__)()))(__import__('__builtin__'))
+
+...or, if you want to think about something more simplified:
+
+    (lambda f: print(f(13)))(lambda x: x+5)
 
 Before:
 
