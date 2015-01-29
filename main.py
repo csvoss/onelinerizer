@@ -2,7 +2,7 @@ import ast
 import sys
 
 
-INIT_CODE = "(lambda __builtin__: (lambda __print, d: %s)(__builtin__.__dict__['print'],type('StateDict',(),__builtin__.__dict__)()))(__import__('__builtin__'))"
+INIT_CODE = "(lambda __builtin__: (lambda __print, __y, d: %s)(__builtin__.__dict__['print'],(lambda f: (lambda x: x(x))(lambda y: f(lambda *args: y(y)(*args)))),type('StateDict',(),__builtin__.__dict__)()))(__import__('__builtin__'))"
 
 def fields(tree):
     return dict(list(ast.iter_fields(tree)))
@@ -257,7 +257,10 @@ def code_with_after(tree, after):
     elif type(tree) is ast.UnaryOp:
         return '(%s%s)' % (code(tree.op), code(tree.operand))
     elif type(tree) is ast.While:
-        raise NotImplementedError('TODO: while')
+        test = code(tree.test)
+        body = many_to_one(tree.body, after='__this(d)')
+        orelse = many_to_one(tree.orelse, after='__after(d)')
+        return "(__y(lambda __this: (lambda d: (lambda __after: %s if %s else %s)(lambda d: %s))))(d)" % (body, test, orelse, after)
     elif type(tree) is ast.With:
         raise NotImplementedError('Open problem: with')
     elif type(tree) is ast.Yield:
@@ -293,7 +296,6 @@ if __name__ == '__main__':
                         exec(original)
                     except Exception as e:
                         print e
-                    print ''
                     print '--- ONELINED ---------------------------------'
                     print onelined
                     print '----------------------------------------------'
