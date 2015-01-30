@@ -34,7 +34,7 @@ def code_with_after(tree, after):
     elif type(tree) is ast.And:
         return ' and '
     elif type(tree) is ast.Assert:
-        raise NotImplementedError('Open problem (intractable?): assert')
+        pass#raise NotImplementedError('Open problem (intractable?): assert')
     elif type(tree) is ast.Assign:
         targets = [code(target) for target in tree.targets]
         value = code(tree.value)
@@ -58,7 +58,7 @@ def code_with_after(tree, after):
     elif type(tree) is ast.BoolOp:
         return '(%s)' % code(tree.op).join([code(val) for val in tree.values])
     elif type(tree) is ast.Break:
-        raise NotImplementedError('TODO: break')
+        pass#raise NotImplementedError('Open problem: break')
     elif type(tree) is ast.Call:
         func = code(tree.func)
         args = [code(arg) for arg in tree.args]
@@ -75,7 +75,7 @@ def code_with_after(tree, after):
         comma_sep_elems = ','.join(elems)
         return '%s(%s)' % (func, comma_sep_elems)
     elif type(tree) is ast.ClassDef:
-        raise NotImplementedError('Open problem: classdef')
+        pass#raise NotImplementedError('TODO: classdef')
         ## Note to self: delattr and setattr are useful things
         ## also you're DEFINITELY going to want this:
         ## https://docs.python.org/2/library/functions.html#type
@@ -85,9 +85,9 @@ def code_with_after(tree, after):
     elif type(tree) is ast.comprehension:
         return ('for %s in %s' % (code(tree.target), code(tree.iter))) + ''.join([' if '+code(i) for i in tree.ifs])
     elif type(tree) is ast.Continue:
-        raise NotImplementedError('TODO: continue')
+        pass#raise NotImplementedError('Open problem: continue')
     elif type(tree) is ast.Delete:
-        raise NotImplementedError('Open problem: delete')
+        pass#raise NotImplementedError('Open problem: delete')
         ## Note also: globals() and locals() are useful here
     elif type(tree) is ast.Dict:
         return '{%s}' % ','.join([('%s:%s'%(code(k), code(v))) for (k,v) in zip(tree.keys, tree.values)])
@@ -100,9 +100,9 @@ def code_with_after(tree, after):
     elif type(tree) is ast.Eq:
         return '=='
     elif type(tree) is ast.ExceptHandler:
-        raise NotImplementedError('Open problem (intractable?): except')
+        pass#raise NotImplementedError('Open problem (intractable?): except')
     elif type(tree) is ast.Exec:
-        raise NotImplementedError('TODO: exec')
+        pass#raise NotImplementedError('TODO: exec')
     elif type(tree) is ast.Expr:
         code_to_exec = code(tree.value)
         return '(lambda ___: %s)(%s)' % (after, code_to_exec) ## TODO: ensure ___ isn't taken
@@ -117,7 +117,7 @@ def code_with_after(tree, after):
         body = many_to_one(tree.body, after='__d')
         items = code(tree.iter)
         if len(tree.orelse) is not 0:
-            raise NotImplementedError("TODO: for-else")
+            pass#raise NotImplementedError("TODO: for-else")
         return '(lambda __d: %s)(reduce((lambda __d, __i:[%s for %s in [__i]][0]),%s,__d))' % (after, body, item, items)
     elif type(tree) is ast.FunctionDef:
         args, arg_names = code(tree.args) ## of the form ('lambda x, y, z=5, *args:', ['x','y','z','args'])
@@ -145,7 +145,7 @@ def code_with_after(tree, after):
     elif type(tree) is ast.GeneratorExp:
         return '%s' % (' '.join([code(tree.elt)] + [code(gen) for gen in tree.generators]))
     elif type(tree) is ast.Global:
-        raise NotImplementedError('Open problem: global')
+        pass#raise NotImplementedError('Open problem: global')
     elif type(tree) is ast.Gt:
         return '>'
     elif type(tree) is ast.GtE:
@@ -164,7 +164,7 @@ def code_with_after(tree, after):
             after = "[%s for __d.%s in [__import__('%s')]][0]" % (after, alias.asname, alias.name)
         return after
     elif type(tree) is ast.ImportFrom:
-        raise NotImplementedError('Open problem:: importfrom')
+        pass#raise NotImplementedError('Open problem:: importfrom')
     elif type(tree) is ast.In:
         return ' in '
     elif type(tree) is ast.Index:
@@ -227,7 +227,7 @@ def code_with_after(tree, after):
     elif type(tree) is ast.RShift:
         return '>>'
     elif type(tree) is ast.Raise:
-        raise NotImplementedError('Open problem (intractable?): raise')
+        pass#raise NotImplementedError('Open problem (intractable?): raise')
     elif type(tree) is ast.Repr:
         return 'repr(%s)' % code(tree.value)
     elif type(tree) is ast.Return:
@@ -250,9 +250,9 @@ def code_with_after(tree, after):
     elif type(tree) is ast.Suite:
         return INIT_CODE % many_to_one(child_nodes(tree))
     elif type(tree) is ast.TryExcept:
-        raise NotImplementedError('Open problem (intractable?): try-except')
+        pass#raise NotImplementedError('Open problem (intractable?): try-except')
     elif type(tree) is ast.TryFinally:
-        raise NotImplementedError('Open problem (intractable?): try-finally')
+        pass#raise NotImplementedError('Open problem (intractable?): try-finally')
     elif type(tree) is ast.Tuple:
         elts = [code(elt) for elt in tree.elts]
         if len(elts) is 0:
@@ -273,11 +273,11 @@ def code_with_after(tree, after):
         orelse = many_to_one(tree.orelse, after='__after(__d)')
         return "(__y(lambda __this: (lambda __d: (lambda __after: %s if %s else %s)(lambda __d: %s))))(__d)" % (body, test, orelse, after)
     elif type(tree) is ast.With:
-        raise NotImplementedError('Open problem: with')
+        pass#raise NotImplementedError('Open problem: with')
     elif type(tree) is ast.Yield:
-        raise NotImplementedError('Open problem: yield')
+        pass#raise NotImplementedError('Open problem: yield')
     else:
-        raise NotImplementedError('Case not caught: %s' % str(type(tree)))
+        pass#raise NotImplementedError('Case not caught: %s' % str(type(tree)))
 
 def to_one_line(original):
     original = original.strip()
@@ -288,37 +288,41 @@ def to_one_line(original):
 
 VERBOSE = True ## TODO: Use command line arg instead
 
-if __name__ == '__main__':
-
-    ## TODO: Put the output in a new file instead of just printing like this.
-
-    try:
-        filename = sys.argv[1]
-    except IndexError:
-        print "Usage: python main.py filename" # TODO: stderr instead
+#if __name__ == '__main__':
+if True:
+    if len(sys.argv) <= 1:
+        print "Usage: python main.py inputfilename [outputfilename]"
     else:
-        try:
-            with open(filename, 'r') as fi:
-                if VERBOSE:
-                    original = fi.read().strip()
-                    onelined = to_one_line(original)
+        infilename = sys.argv[1]
 
-                    print '--- ORIGINAL ---------------------------------'
-                    print original
-                    print '----------------------------------------------'
-                    try:
-                        exec(original)
-                    except Exception as e:
-                        print e
-                    print '--- ONELINED ---------------------------------'
-                    print onelined
-                    print '----------------------------------------------'
-                    try:
-                        exec(onelined)
-                    except Exception as e:
-                        print e
-                else:
-                    raise NotImplementedError("Non-testing functionality")
-        except IOError:
-            print "Input file not found: %s" % filename  # TODO: stderr instead
+        if len(sys.argv) >= 3:
+            outfilename = sys.argv[2]
+        else:
+            if ".py" in infilename:
+                outfilename = ".ol.py".join(infilename.rsplit(".py", 1))
+            else:
+                outfilename = infilename + ".ol.py"
+            print "Writing to %s" % outfilename
 
+        infi = open(infilename, 'r')
+        outfi = open(outfilename, 'w')
+
+        original = infi.read().strip()
+        onelined = to_one_line(original)
+        outfi.write(onelined+"\n")
+
+        if VERBOSE:
+            print '--- ORIGINAL ---------------------------------'
+            print original
+            print '----------------------------------------------'
+            try:
+                exec(original)
+            except Exception as e:
+                print e
+            print '--- ONELINED ---------------------------------'
+            print onelined
+            print '----------------------------------------------'
+            try:
+                exec(onelined)
+            except Exception as e:
+                print e
