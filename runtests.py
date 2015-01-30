@@ -34,10 +34,13 @@ def capture_exec(code_string):
     old_stdin = sys.stdin
     sys.stdout = new_stdout
     sys.stdin = FakeStdin()
+    namespace = {}
     try:
-        exec code_string
+        exec code_string in namespace
     except Exception as e:
-        raise type(e)(e.message + ', with code: ' + code_string)
+        import traceback
+        exc = traceback.format_exc()
+        raise type(e)(code_string + '\n\n' + exc)
     sys.stdout = old_stdout
     sys.stdin = old_stdin
     return new_stdout.getvalue()
@@ -51,4 +54,3 @@ for subdir, dirs, files in os.walk(TEST_DIRECTORY):
 
 if __name__ == '__main__':
     unittest.main()
-
