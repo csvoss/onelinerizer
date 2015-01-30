@@ -288,8 +288,7 @@ def to_one_line(original):
 
 VERBOSE = True ## TODO: Use command line arg instead
 
-#if __name__ == '__main__':
-if True:
+if __name__ == '__main__':
     if len(sys.argv) <= 1:
         print "Usage: python main.py inputfilename [outputfilename]"
     else:
