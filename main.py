@@ -1,8 +1,14 @@
 import ast
 import sys
 
+INIT_CODE = "(lambda __builtin__: (lambda __print, __y, __d: %s)(__builtin__.__dict__['print'],(lambda f: (lambda x: x(x))(lambda y: f(lambda *args: y(y)(*args)))),type('StateDict',(),__builtin__.__dict__)()))(__import__('__builtin__'))"
 
-INIT_CODE = "(lambda __builtin__: (lambda __print, __y, d: %s)(__builtin__.__dict__['print'],(lambda f: (lambda x: x(x))(lambda y: f(lambda *args: y(y)(*args)))),type('StateDict',(),__builtin__.__dict__)()))(__import__('__builtin__'))"
+## TODO: Detect which features are ACTUALLY needed, and modify the code accordingly.
+
+## Need __d and the list comprehension trick if we do anything involving __d -- while, for, if
+## Need __print if we print
+## Need __y if we use while
+## Need __builtin__ if we use __print OR if we use __d
 
 def fields(tree):
     return dict(list(ast.iter_fields(tree)))
@@ -87,7 +93,7 @@ def code_with_after(tree, after):
         return '{%s}' % ','.join([('%s:%s'%(code(k), code(v))) for (k,v) in zip(tree.keys, tree.values)])
     elif type(tree) is ast.DictComp:
         return '{%s}' % (' '.join([code(tree.key)+":"+code(tree.value)] + [code(gen) for gen in tree.generators]))
-    elif type(tree) is ast.Div: ## TODO -- no from future division
+    elif type(tree) is ast.Div:
         return '/'
     elif type(tree) is ast.Ellipsis:
         return '...'
@@ -107,22 +113,27 @@ def code_with_after(tree, after):
     elif type(tree) is ast.FloorDiv:
         return '//'
     elif type(tree) is ast.For:
-        raise NotImplementedError('TODO: for')
+        item = code(tree.target)
+        body = many_to_one(tree.body, after='__d')
+        items = code(tree.iter)
+        if len(tree.orelse) is not 0:
+            raise NotImplementedError("TODO: for-else")
+        return '(lambda __d: %s)(reduce((lambda __d, __i:[%s for %s in [__i]][0]),%s,__d))' % (after, body, item, items)
     elif type(tree) is ast.FunctionDef:
         args, arg_names = code(tree.args) ## of the form ('lambda x, y, z=5, *args:', ['x','y','z','args'])
         body = many_to_one(tree.body)
-        body = '[%s for %s in [(%s)]][0]' % (body, 'd.'+',d.'.join(arg_names), ','.join(arg_names)) ## apply lets for d.arguments
+        body = '[%s for %s in [(%s)]][0]' % (body, '__d.'+',__d.'.join(arg_names), ','.join(arg_names)) ## apply lets for d.arguments
         function_code = args + body
         if len(tree.decorator_list) > 0:
             for decorator in tree.decorator_list:
                 function_code = "%s(%s)" % (code(decorator), function_code)
-        return "[%s for d.%s in [(%s)]][0]" % (after, tree.name, function_code)
+        return "[%s for __d.%s in [(%s)]][0]" % (after, tree.name, function_code)
     elif type(tree) is ast.arguments:
         ## return something of the form ('lambda x, y, z=5, *args:', ['x','y','z','args'])
         padded_defaults = [None]*(len(tree.args)-len(tree.defaults)) + tree.defaults
         arg_names = [arg.id for arg in tree.args]
         args = zip(padded_defaults, tree.args)
-        args = [a.id if d is None else a.id+"="+code(d) for (d,a) in args] ## TODO: str or code?
+        args = [a.id if d is None else a.id+"="+code(d) for (d,a) in args]
         if tree.vararg is not None:
             args += ["*" + tree.vararg]
             arg_names += [tree.vararg]
@@ -141,16 +152,16 @@ def code_with_after(tree, after):
         return '>='
     elif type(tree) is ast.If:
         test = code(tree.test)
-        body = many_to_one(tree.body, after='__after(d)')
-        orelse = many_to_one(tree.orelse, after='__after(d)')
-        return "(lambda __after: %s if %s else %s)(lambda d: %s)" % (body, test, orelse, after)
+        body = many_to_one(tree.body, after='__after(__d)')
+        orelse = many_to_one(tree.orelse, after='__after(__d)')
+        return "(lambda __after: %s if %s else %s)(lambda __d: %s)" % (body, test, orelse, after)
     elif type(tree) is ast.IfExp:
         return "(%s if %s else %s)" % (code(tree.body), code(tree.test), code(tree.orelse))
     elif type(tree) is ast.Import:
         for alias in tree.names:
             if alias.asname is None:
                 alias.asname = alias.name
-            after = "[%s for d.%s in [__import__('%s')]][0]" % (after, alias.asname, alias.name)
+            after = "[%s for __d.%s in [__import__('%s')]][0]" % (after, alias.asname, alias.name)
         return after
     elif type(tree) is ast.ImportFrom:
         raise NotImplementedError('Open problem:: importfrom')
@@ -173,7 +184,7 @@ def code_with_after(tree, after):
     elif type(tree) is ast.Lambda:
         args, arg_names = code(tree.args)
         body = code(tree.body)
-        body = '[%s for %s in [(%s)]][0]' % (body, 'd.'+',d.'.join(arg_names), ','.join(arg_names)) ## apply lets for d.arguments
+        body = '[%s for %s in [(%s)]][0]' % (body, '__d.'+',__d.'.join(arg_names), ','.join(arg_names)) ## apply lets for d.arguments
         return '(' + args + body + ')'
     elif type(tree) is ast.List:
         elts = [code(elt) for elt in tree.elts]
@@ -192,7 +203,7 @@ def code_with_after(tree, after):
     elif type(tree) is ast.Mult:
         return '*'
     elif type(tree) is ast.Name:
-        return 'd.'+tree.id
+        return '__d.'+tree.id
     elif type(tree) is ast.Not:
         return 'not '
     elif type(tree) is ast.NotEq:
@@ -258,9 +269,9 @@ def code_with_after(tree, after):
         return '(%s%s)' % (code(tree.op), code(tree.operand))
     elif type(tree) is ast.While:
         test = code(tree.test)
-        body = many_to_one(tree.body, after='__this(d)')
-        orelse = many_to_one(tree.orelse, after='__after(d)')
-        return "(__y(lambda __this: (lambda d: (lambda __after: %s if %s else %s)(lambda d: %s))))(d)" % (body, test, orelse, after)
+        body = many_to_one(tree.body, after='__this(__d)')
+        orelse = many_to_one(tree.orelse, after='__after(__d)')
+        return "(__y(lambda __this: (lambda __d: (lambda __after: %s if %s else %s)(lambda __d: %s))))(__d)" % (body, test, orelse, after)
     elif type(tree) is ast.With:
         raise NotImplementedError('Open problem: with')
     elif type(tree) is ast.Yield:
@@ -269,6 +280,9 @@ def code_with_after(tree, after):
         raise NotImplementedError('Case not caught: %s' % str(type(tree)))
 
 def to_one_line(original):
+    original = original.strip()
+    if len(original.splitlines()) == 1:
+        return original
     t = ast.parse(original)
     return code(t)
 
