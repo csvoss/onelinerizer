@@ -11,7 +11,8 @@ Installation and Usage
 ----------------------
 
     git clone https://github.com/csvoss/oneliner
-    python oneliner/main.py name_of_target_file.py
+    cd oneliner
+    python main.py name_of_target_file.py
 
 Examples
 --------
@@ -87,7 +88,19 @@ Analysis
 
 I'm guessing it's slower, but no more than linearly so; I have yet to analyze this.
 
-Since while loops and for loops are implemented with recursion, you might encounter unfortunate maximum-recursion-depth-exceeded errors.
+### Tips
+
+The one-lined code tends to contain many nested lambdas; if there are too many, Python will refuse to run it.
+
+    $ python main.ol.py
+    s_push: parser stack overflow
+    MemoryError
+
+This can be fixed using pypy.
+
+    $ pypy main.ol.py
+
+However, since while loops and for loops are implemented with recursion, you might encounter `maximum recursion depth exceeded` errors during runtime if your loops go on for too long. I do not yet know of a fix for this.
 
 Open Problems
 -------------
