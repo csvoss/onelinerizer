@@ -100,7 +100,15 @@ This can be fixed using pypy.
 
     $ pypy main.ol.py
 
-However, since while loops and for loops are implemented with recursion, you might encounter `maximum recursion depth exceeded` errors during runtime if your loops go on for too long. I do not yet know of a fix for this.
+However, since while loops and for loops are implemented with recursion, you might encounter `maximum recursion depth exceeded` errors during runtime if your loops go on for too long.
+
+To get around this, you can put
+
+    import sys
+    sys.setrecursionlimit(new_limit)
+
+in your original Python code; currently oneliner will not place this command in for you.
+
 
 Not Implemented
 ---------------
