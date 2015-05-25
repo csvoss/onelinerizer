@@ -1,7 +1,6 @@
 import ast
 import sys
 
-INIT_CODE = "(lambda __builtin__: (lambda __print, __y, __d: %s)(__builtin__.__dict__['print'],(lambda f: (lambda x: x(x))(lambda y: f(lambda *args: y(y)(*args)))),type('StateDict',(),__builtin__.__dict__)()))(__import__('__builtin__'))"
 
 ## TODO: Detect which features are ACTUALLY needed, and modify the code accordingly.
 
@@ -9,6 +8,63 @@ INIT_CODE = "(lambda __builtin__: (lambda __print, __y, __d: %s)(__builtin__.__d
 ## Need __print if we print
 ## Need __y if we use while
 ## Need __builtin__ if we use __print OR if we use __d
+
+
+## Typesetting abstractions
+
+
+DUNDER_PRINT = "__print"
+DUNDER_Y = "__y"
+DUNDER_D = "__d"
+
+COMMA = ", "
+CONTINUATION = "%s"
+
+def lambda_function(arguments_to_values, prettyprinted=False):
+    ## arguments_to_values :: {argument_i: value_i}
+    ## :: string
+    if prettyprinted:
+        raise NotImplementedError
+    else:
+        return "(lambda " + (COMMA.join(arguments_to_values.keys())) + ": " + CONTINUATION + ")(" + (COMMA.join(arguments_to_values.values())) + ")"
+
+
+### Actual logicky code begins here
+
+
+def get_init_code(tree):
+    ## Return a string with %s somewhere in.
+    ## INIT_CODE = "(lambda __builtin__: (lambda __print, __y, __d: %s)(__builtin__.__dict__['print'],(lambda f: (lambda x: x(x))(lambda y: f(lambda *args: y(y)(*args)))),type('StateDict',(),__builtin__.__dict__)()))(__import__('__builtin__'))"
+
+    ## TODO: Short-circuit to something far simpler if the program has but one print statement.
+
+    need_print = True ## true if prints anywhere. TODO.
+    need_y_combinator = True ## true if uses a while. TODO.
+    need_state_dict = True ## true if uses anything involving __d -- while, for, if. Also governs the list comprehension trick. TODO.
+    need_dunderbuiltin = need_print or need_state_dict
+
+    output = "%s"
+    if need_dunderbuiltin:
+        output = output % lambda_function({"__builtin__": "__import__('__builtin__')"})
+
+    arguments = {}
+    if need_print:
+        arguments[DUNDER_PRINT] = "__builtin__.__dict__['print']"
+    if need_y_combinator:
+        arguments[DUNDER_Y] = "(lambda f: (lambda x: x(x))(lambda y: f(lambda *args: y(y)(*args))))"
+    if need_state_dict:
+        arguments[DUNDER_D] = "type('StateDict',(),__builtin__.__dict__)()"
+
+    if len(arguments.keys()) > 0:
+        output = output % lambda_function(arguments)
+
+    return output
+        
+
+
+
+## Parsing begins here
+
 
 def fields(tree):
     return dict(list(ast.iter_fields(tree)))
@@ -34,7 +90,7 @@ def code_with_after(tree, after):
     elif type(tree) is ast.And:
         return ' and '
     elif type(tree) is ast.Assert:
-        pass#raise NotImplementedError('Open problem (intractable?): assert')
+        raise NotImplementedError('Open problem (intractable?): assert')
     elif type(tree) is ast.Assign:
         targets = [code(target) for target in tree.targets]
         value = code(tree.value)
@@ -58,7 +114,7 @@ def code_with_after(tree, after):
     elif type(tree) is ast.BoolOp:
         return '(%s)' % code(tree.op).join([code(val) for val in tree.values])
     elif type(tree) is ast.Break:
-        pass#raise NotImplementedError('Open problem: break')
+        raise NotImplementedError('Open problem: break')
     elif type(tree) is ast.Call:
         func = code(tree.func)
         args = [code(arg) for arg in tree.args]
@@ -75,7 +131,7 @@ def code_with_after(tree, after):
         comma_sep_elems = ','.join(elems)
         return '%s(%s)' % (func, comma_sep_elems)
     elif type(tree) is ast.ClassDef:
-        pass#raise NotImplementedError('TODO: classdef')
+        raise NotImplementedError('TODO: classdef')
         ## Note to self: delattr and setattr are useful things
         ## also you're DEFINITELY going to want this:
         ## https://docs.python.org/2/library/functions.html#type
@@ -85,9 +141,9 @@ def code_with_after(tree, after):
     elif type(tree) is ast.comprehension:
         return ('for %s in %s' % (code(tree.target), code(tree.iter))) + ''.join([' if '+code(i) for i in tree.ifs])
     elif type(tree) is ast.Continue:
-        pass#raise NotImplementedError('Open problem: continue')
+        raise NotImplementedError('Open problem: continue')
     elif type(tree) is ast.Delete:
-        pass#raise NotImplementedError('Open problem: delete')
+        raise NotImplementedError('Open problem: delete')
         ## Note also: globals() and locals() are useful here
     elif type(tree) is ast.Dict:
         return '{%s}' % ','.join([('%s:%s'%(code(k), code(v))) for (k,v) in zip(tree.keys, tree.values)])
@@ -100,9 +156,9 @@ def code_with_after(tree, after):
     elif type(tree) is ast.Eq:
         return '=='
     elif type(tree) is ast.ExceptHandler:
-        pass#raise NotImplementedError('Open problem (intractable?): except')
+        raise NotImplementedError('Open problem (intractable?): except')
     elif type(tree) is ast.Exec:
-        pass#raise NotImplementedError('TODO: exec')
+        raise NotImplementedError('TODO: exec')
     elif type(tree) is ast.Expr:
         code_to_exec = code(tree.value)
         return '(lambda ___: %s)(%s)' % (after, code_to_exec) ## TODO: ensure ___ isn't taken
@@ -117,7 +173,7 @@ def code_with_after(tree, after):
         body = many_to_one(tree.body, after='__d')
         items = code(tree.iter)
         if len(tree.orelse) is not 0:
-            pass#raise NotImplementedError("TODO: for-else")
+            raise NotImplementedError("TODO: for-else")
         return '(lambda __d: %s)(reduce((lambda __d, __i:[%s for %s in [__i]][0]),%s,__d))' % (after, body, item, items)
     elif type(tree) is ast.FunctionDef:
         args, arg_names = code(tree.args) ## of the form ('lambda x, y, z=5, *args:', ['x','y','z','args'])
@@ -145,7 +201,7 @@ def code_with_after(tree, after):
     elif type(tree) is ast.GeneratorExp:
         return '%s' % (' '.join([code(tree.elt)] + [code(gen) for gen in tree.generators]))
     elif type(tree) is ast.Global:
-        pass#raise NotImplementedError('Open problem: global')
+        raise NotImplementedError('Open problem: global')
     elif type(tree) is ast.Gt:
         return '>'
     elif type(tree) is ast.GtE:
@@ -164,7 +220,7 @@ def code_with_after(tree, after):
             after = "[%s for __d.%s in [__import__('%s')]][0]" % (after, alias.asname, alias.name)
         return after
     elif type(tree) is ast.ImportFrom:
-        pass#raise NotImplementedError('Open problem:: importfrom')
+        raise NotImplementedError('Open problem:: importfrom')
     elif type(tree) is ast.In:
         return ' in '
     elif type(tree) is ast.Index:
@@ -227,7 +283,7 @@ def code_with_after(tree, after):
     elif type(tree) is ast.RShift:
         return '>>'
     elif type(tree) is ast.Raise:
-        pass#raise NotImplementedError('Open problem (intractable?): raise')
+        raise NotImplementedError('Open problem (intractable?): raise')
     elif type(tree) is ast.Repr:
         return 'repr(%s)' % code(tree.value)
     elif type(tree) is ast.Return:
@@ -250,9 +306,9 @@ def code_with_after(tree, after):
     elif type(tree) is ast.Suite:
         return INIT_CODE % many_to_one(child_nodes(tree))
     elif type(tree) is ast.TryExcept:
-        pass#raise NotImplementedError('Open problem (intractable?): try-except')
+        raise NotImplementedError('Open problem (intractable?): try-except')
     elif type(tree) is ast.TryFinally:
-        pass#raise NotImplementedError('Open problem (intractable?): try-finally')
+        raise NotImplementedError('Open problem (intractable?): try-finally')
     elif type(tree) is ast.Tuple:
         elts = [code(elt) for elt in tree.elts]
         if len(elts) is 0:
@@ -273,20 +329,46 @@ def code_with_after(tree, after):
         orelse = many_to_one(tree.orelse, after='__after(__d)')
         return "(__y(lambda __this: (lambda __d: (lambda __after: %s if %s else %s)(lambda __d: %s))))(__d)" % (body, test, orelse, after)
     elif type(tree) is ast.With:
-        pass#raise NotImplementedError('Open problem: with')
+        raise NotImplementedError('Open problem: with')
     elif type(tree) is ast.Yield:
-        pass#raise NotImplementedError('Open problem: yield')
+        raise NotImplementedError('Open problem: yield')
     else:
-        pass#raise NotImplementedError('Case not caught: %s' % str(type(tree)))
+        raise NotImplementedError('Case not caught: %s' % str(type(tree)))
 
+
+
+
+## The entry point for everything.
 def to_one_line(original):
+    ## original :: string
+    ## :: string
+    global INIT_CODE
+
     original = original.strip()
+
+    ## If there's only one line anyways, be lazy
     if len(original.splitlines()) == 1:
         return original
+
     t = ast.parse(original)
+    INIT_CODE = get_init_code(t)
+
     return code(t)
 
-VERBOSE = True ## TODO: Use command line arg instead
+
+# def has_single_print(tree):
+#     ## TODO analysis for this
+#     ## Return (True, ASTExpressionNode) if there is a single print (where ASTNode is the thing to be printeeee---
+#     ## wait what if it's in a function k nevermind
+#     return (False, None)
+
+
+
+
+
+DEBUG = True ## TODO: Use command line arg instead
+
+
 
 if __name__ == '__main__':
     if len(sys.argv) <= 1:
@@ -310,7 +392,7 @@ if __name__ == '__main__':
         onelined = to_one_line(original)
         outfi.write(onelined+"\n")
 
-        if VERBOSE:
+        if DEBUG:
             print '--- ORIGINAL ---------------------------------'
             print original
             print '----------------------------------------------'
