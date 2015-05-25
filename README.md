@@ -11,9 +11,9 @@ Installation and Usage
 ----------------------
 
 ```sh
-    git clone https://github.com/csvoss/oneliner
-    cd oneliner
-    python main.py name_of_target_file.py
+$ git clone https://github.com/csvoss/oneliner
+$ cd oneliner
+$ python main.py name_of_target_file.py
 ```
 
 Examples
@@ -22,9 +22,9 @@ Examples
 **Before:**
 
 ```python
-    x = 3
-    y = 4
-    print (x < y < 5)
+x = 3
+y = 4
+print (x < y < 5)
 ```
 
 **After:**
@@ -36,15 +36,15 @@ Examples
 That line looks complicated, because we need some tricks to import the print function and to support certain tricks which are needed for more complicated features such as `while` and `if`. For a program as simple as this one, though, you can think of it as working this way:
 
 ```python
-     (lambda x: (lambda y: print(x<y<5))(4))(3)
+(lambda x: (lambda y: print(x<y<5))(4))(3)
 ```
 
 **Before:**
 
 ```python
-    def f(x):
-        return x+5
-    print f(13)
+def f(x):
+    return x+5
+print f(13)
 ```
 
 **After:**
@@ -62,26 +62,28 @@ That line looks complicated, because we need some tricks to import the print fun
 **Before:**
 
 ```python
-    def guess_my_number(n):
-        while True:
-            user_input = raw_input("Enter a positive integer to guess: ")
-            if len(user_input)==0 or not user_input.isdigit():
-                print "Not a positive integer!"
+def guess_my_number(n):
+    while True:
+        user_input = raw_input("Enter a positive integer to guess: ")
+        if len(user_input)==0 or not user_input.isdigit():
+            print "Not a positive integer!"
+        else:
+            user_input = int(user_input)
+            if user_input > n:
+                print "Too big! Try again!"
+            elif user_input < n:
+                print "Too small! Try again!"
             else:
-                user_input = int(user_input)
-                if user_input > n:
-                    print "Too big! Try again!"
-                elif user_input < n:
-                    print "Too small! Try again!"
-                else:
-                    print "You win!"
-                    return True
-    guess_my_number(42)
-```python
+                print "You win!"
+                return True
+guess_my_number(42)
+```
 
 **After:**
 
-    (lambda __builtin__: (lambda __print, __y, d: [(lambda ___: None)(d.guess_my_number(42)) for d.guess_my_number in [(lambda n:[(__y(lambda __this: (lambda d: (lambda __after: [(lambda __after: (lambda ___: __after(d))(__print('Not a positive integer!')) if (d.len(d.user_input)==0 or (not d.user_input.isdigit())) else [(lambda __after: (lambda ___: __after(d))(__print('Too big! Try again!')) if d.user_input>d.n else (lambda __after: (lambda ___: __after(d))(__print('Too small! Try again!')) if d.user_input<d.n else (lambda ___: d.True)(__print('You win!')))(lambda d: __after(d)))(lambda d: __after(d)) for d.user_input in [(d.int(d.user_input))]][0])(lambda d: __this(d)) for d.user_input in [(d.raw_input('Enter a positive integer to guess: '))]][0] if d.True else __after(d))(lambda d: None))))(d) for d.n in [(n)]][0])]][0])(__builtin__.__dict__['print'],(lambda f: (lambda x: x(x))(lambda y: f(lambda *args: y(y)(*args)))),type('StateDict',(),__builtin__.__dict__)()))(__import__('__builtin__'))
+```python
+(lambda __builtin__: (lambda __print, __y, d: [(lambda ___: None)(d.guess_my_number(42)) for d.guess_my_number in [(lambda n:[(__y(lambda __this: (lambda d: (lambda __after: [(lambda __after: (lambda ___: __after(d))(__print('Not a positive integer!')) if (d.len(d.user_input)==0 or (not d.user_input.isdigit())) else [(lambda __after: (lambda ___: __after(d))(__print('Too big! Try again!')) if d.user_input>d.n else (lambda __after: (lambda ___: __after(d))(__print('Too small! Try again!')) if d.user_input<d.n else (lambda ___: d.True)(__print('You win!')))(lambda d: __after(d)))(lambda d: __after(d)) for d.user_input in [(d.int(d.user_input))]][0])(lambda d: __this(d)) for d.user_input in [(d.raw_input('Enter a positive integer to guess: '))]][0] if d.True else __after(d))(lambda d: None))))(d) for d.n in [(n)]][0])]][0])(__builtin__.__dict__['print'],(lambda f: (lambda x: x(x))(lambda y: f(lambda *args: y(y)(*args)))),type('StateDict',(),__builtin__.__dict__)()))(__import__('__builtin__'))
+```
 
 FAQ
 ---
