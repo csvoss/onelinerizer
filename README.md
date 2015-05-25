@@ -102,14 +102,17 @@ This can be fixed using pypy.
 
 However, since while loops and for loops are implemented with recursion, you might encounter `maximum recursion depth exceeded` errors during runtime if your loops go on for too long. I do not yet know of a fix for this.
 
+Not Implemented
+---------------
+* classes and OOP
+* from foo import bar
+
 Open Problems
 -------------
 * try/except/finally
 * raise/assert
-* classes and OOP
 * global variables
 * del
 * exec
 * with
 * yield
-* from foo import bar
