@@ -84,6 +84,12 @@ def many_to_one(trees, after='None'):
 def code(tree):
     return code_with_after(tree, 'None')
 
+
+def assignment_component(after, targets, value):
+    ## return "(lambda %s: %s)(%s)" % (targets, after, value)
+    return '[%s for %s in [(%s)]][0]' % (after, targets, value)
+
+
 def code_with_after(tree, after):
     if type(tree) is ast.Add:
         return '+'
@@ -95,14 +101,15 @@ def code_with_after(tree, after):
         targets = [code(target) for target in tree.targets]
         value = code(tree.value)
         targets = ','.join(targets)
-        return '[%s for %s in [(%s)]][0]' % (after, targets, value)
+        return assignment_component(after, targets, value)
     elif type(tree) is ast.Attribute:
         return '%s.%s' % (code(tree.value), tree.attr)
     elif type(tree) is ast.AugAssign:
         target = code(tree.target)
         op = code(tree.op)
         value = code(tree.value)
-        return '[%s for %s in [%s%s%s]][0]' % (after, target, target, op, value)
+        value = "%s%s%s" % (target, op, value)
+        return assignment_component(after, target, value)
     elif type(tree) is ast.BinOp:
         return '(%s%s%s)' % (code(tree.left), code(tree.op), code(tree.right))
     elif type(tree) is ast.BitAnd:
@@ -131,7 +138,7 @@ def code_with_after(tree, after):
         comma_sep_elems = ','.join(elems)
         return '%s(%s)' % (func, comma_sep_elems)
     elif type(tree) is ast.ClassDef:
-        raise NotImplementedError('TODO: classdef')
+        raise NotImplementedError('Not yet implemented: classdef')
         ## Note to self: delattr and setattr are useful things
         ## also you're DEFINITELY going to want this:
         ## https://docs.python.org/2/library/functions.html#type
@@ -143,8 +150,9 @@ def code_with_after(tree, after):
     elif type(tree) is ast.Continue:
         raise NotImplementedError('Open problem: continue')
     elif type(tree) is ast.Delete:
-        raise NotImplementedError('Open problem: delete')
+        raise NotImplementedError('Not yet implemented: delete')
         ## Note also: globals() and locals() are useful here
+        ## You can pop() from globals and/or locals to implement this
     elif type(tree) is ast.Dict:
         return '{%s}' % ','.join([('%s:%s'%(code(k), code(v))) for (k,v) in zip(tree.keys, tree.values)])
     elif type(tree) is ast.DictComp:
@@ -158,7 +166,7 @@ def code_with_after(tree, after):
     elif type(tree) is ast.ExceptHandler:
         raise NotImplementedError('Open problem (intractable?): except')
     elif type(tree) is ast.Exec:
-        raise NotImplementedError('TODO: exec')
+        raise NotImplementedError('Open problem: exec')
     elif type(tree) is ast.Expr:
         code_to_exec = code(tree.value)
         return '(lambda ___: %s)(%s)' % (after, code_to_exec) ## TODO: ensure ___ isn't taken
@@ -173,17 +181,18 @@ def code_with_after(tree, after):
         body = many_to_one(tree.body, after='__d')
         items = code(tree.iter)
         if len(tree.orelse) is not 0:
-            raise NotImplementedError("TODO: for-else")
-        return '(lambda __d: %s)(reduce((lambda __d, __i:[%s for %s in [__i]][0]),%s,__d))' % (after, body, item, items)
+            raise NotImplementedError("Not yet implemented: for-else")
+        output = '(lambda __d: %s)(reduce((lambda __d, __i:'%after + assignment_component(body, item, "__i") + '),%s,__d))'%items
+        return output
     elif type(tree) is ast.FunctionDef:
         args, arg_names = code(tree.args) ## of the form ('lambda x, y, z=5, *args:', ['x','y','z','args'])
         body = many_to_one(tree.body)
-        body = '[%s for %s in [(%s)]][0]' % (body, '__d.'+',__d.'.join(arg_names), ','.join(arg_names)) ## apply lets for d.arguments
+        body = assignment_component(body, '__d.'+',__d.'.join(arg_names), ','.join(arg_names)) ## apply lets for d.arguments
         function_code = args + body
         if len(tree.decorator_list) > 0:
             for decorator in tree.decorator_list:
                 function_code = "%s(%s)" % (code(decorator), function_code)
-        return "[%s for __d.%s in [(%s)]][0]" % (after, tree.name, function_code)
+        return assignment_component(after, "__d."+tree.name, function_code)
     elif type(tree) is ast.arguments:
         ## return something of the form ('lambda x, y, z=5, *args:', ['x','y','z','args'])
         padded_defaults = [None]*(len(tree.args)-len(tree.defaults)) + tree.defaults
@@ -217,10 +226,10 @@ def code_with_after(tree, after):
         for alias in tree.names:
             if alias.asname is None:
                 alias.asname = alias.name
-            after = "[%s for __d.%s in [__import__('%s')]][0]" % (after, alias.asname, alias.name)
+            after = assignment_component(after, "__d.%s"%alias.asname, "__import__('%s')"%alias.name)
         return after
     elif type(tree) is ast.ImportFrom:
-        raise NotImplementedError('Open problem:: importfrom')
+        raise NotImplementedError('Open problem: importfrom')
     elif type(tree) is ast.In:
         return ' in '
     elif type(tree) is ast.Index:
@@ -240,7 +249,7 @@ def code_with_after(tree, after):
     elif type(tree) is ast.Lambda:
         args, arg_names = code(tree.args)
         body = code(tree.body)
-        body = '[%s for %s in [(%s)]][0]' % (body, '__d.'+',__d.'.join(arg_names), ','.join(arg_names)) ## apply lets for d.arguments
+        body = assignment_component(body, '__d.'+',__d.'.join(arg_names), ','.join(arg_names))
         return '(' + args + body + ')'
     elif type(tree) is ast.List:
         elts = [code(elt) for elt in tree.elts]
