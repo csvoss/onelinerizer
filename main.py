@@ -4,10 +4,9 @@ import sys
 
 ## TODO: Detect which features are ACTUALLY needed, and modify the code accordingly.
 
-## Need __d and the list comprehension trick if we do anything involving __d -- while, for, if
 ## Need __print if we print
 ## Need __y if we use while
-## Need __builtin__ if we use __print OR if we use __d
+## Need __builtin__ if we use __print
 
 
 ## Typesetting abstractions
@@ -15,7 +14,6 @@ import sys
 
 DUNDER_PRINT = "__print"
 DUNDER_Y = "__y"
-DUNDER_D = "__d"
 
 COMMA = ", "
 CONTINUATION = "%s"
@@ -37,10 +35,9 @@ def get_init_code(tree):
     ## INIT_CODE = "(lambda __builtin__: (lambda __print, __y, __d: %s)(__builtin__.__dict__['print'],(lambda f: (lambda x: x(x))(lambda y: f(lambda *args: y(y)(*args)))),type('StateDict',(),__builtin__.__dict__)()))(__import__('__builtin__'))"
 
     ## TODO: Short-circuit to something far simpler if the program has but one print statement.
-
     need_print = True ## true if prints anywhere. TODO.
     need_y_combinator = True ## true if uses a while. TODO.
-    need_state_dict = True ## true if uses anything involving __d -- while, for, if. Also governs the list comprehension trick. TODO.
+    # need_state_dict = True ## true if uses anything involving __d -- while, for, if. Also governs the list comprehension trick. TODO.
     need_dunderbuiltin = need_print or need_state_dict
 
     output = "%s"
@@ -52,19 +49,16 @@ def get_init_code(tree):
         arguments[DUNDER_PRINT] = "__builtin__.__dict__['print']"
     if need_y_combinator:
         arguments[DUNDER_Y] = "(lambda f: (lambda x: x(x))(lambda y: f(lambda *args: y(y)(*args))))"
-    if need_state_dict:
-        arguments[DUNDER_D] = "type('StateDict',(),__builtin__.__dict__)()"
+    # if need_state_dict:
+    #     arguments[DUNDER_D] = "type('StateDict',(),__builtin__.__dict__)()"
 
     if len(arguments.keys()) > 0:
         output = output % lambda_function(arguments)
 
     return output
-        
-
 
 
 ## Parsing begins here
-
 
 def fields(tree):
     return dict(list(ast.iter_fields(tree)))
@@ -86,8 +80,8 @@ def code(tree):
 
 
 def assignment_component(after, targets, value):
-    ## return "(lambda %s: %s)(%s)" % (targets, after, value)
-    return '[%s for %s in [(%s)]][0]' % (after, targets, value)
+    return "(lambda %s: %s)(%s)" % (targets, after, value)
+    ## return '[%s for %s in [(%s)]][0]' % (after, targets, value)
 
 
 def code_with_after(tree, after):
@@ -96,7 +90,7 @@ def code_with_after(tree, after):
     elif type(tree) is ast.And:
         return ' and '
     elif type(tree) is ast.Assert:
-        raise NotImplementedError('Open problem (intractable?): assert')
+        raise NotImplementedError("'assert' is an open problem.")
     elif type(tree) is ast.Assign:
         targets = [code(target) for target in tree.targets]
         value = code(tree.value)
@@ -121,7 +115,7 @@ def code_with_after(tree, after):
     elif type(tree) is ast.BoolOp:
         return '(%s)' % code(tree.op).join([code(val) for val in tree.values])
     elif type(tree) is ast.Break:
-        raise NotImplementedError('Open problem: break')
+        raise NotImplementedError("'break' is an open problem.")
     elif type(tree) is ast.Call:
         func = code(tree.func)
         args = [code(arg) for arg in tree.args]
@@ -138,7 +132,7 @@ def code_with_after(tree, after):
         comma_sep_elems = ','.join(elems)
         return '%s(%s)' % (func, comma_sep_elems)
     elif type(tree) is ast.ClassDef:
-        raise NotImplementedError('Not yet implemented: classdef')
+        raise NotImplementedError("class definitions are not implemented.")
         ## Note to self: delattr and setattr are useful things
         ## also you're DEFINITELY going to want this:
         ## https://docs.python.org/2/library/functions.html#type
@@ -148,9 +142,9 @@ def code_with_after(tree, after):
     elif type(tree) is ast.comprehension:
         return ('for %s in %s' % (code(tree.target), code(tree.iter))) + ''.join([' if '+code(i) for i in tree.ifs])
     elif type(tree) is ast.Continue:
-        raise NotImplementedError('Open problem: continue')
+        raise NotImplementedError("'continue' is an open problem.")
     elif type(tree) is ast.Delete:
-        raise NotImplementedError('Not yet implemented: delete')
+        raise NotImplementedError("'delete' is not implemented.")
         ## Note also: globals() and locals() are useful here
         ## You can pop() from globals and/or locals to implement this
     elif type(tree) is ast.Dict:
@@ -164,9 +158,9 @@ def code_with_after(tree, after):
     elif type(tree) is ast.Eq:
         return '=='
     elif type(tree) is ast.ExceptHandler:
-        raise NotImplementedError('Open problem (intractable?): except')
+        raise NotImplementedError("'except' is an open problem.")
     elif type(tree) is ast.Exec:
-        raise NotImplementedError('Open problem: exec')
+        raise NotImplementedError("'exec' is an open problem.")
     elif type(tree) is ast.Expr:
         code_to_exec = code(tree.value)
         return '(lambda ___: %s)(%s)' % (after, code_to_exec) ## TODO: ensure ___ isn't taken
@@ -177,22 +171,26 @@ def code_with_after(tree, after):
     elif type(tree) is ast.FloorDiv:
         return '//'
     elif type(tree) is ast.For:
+        # TODO. The (THING)s are tuples. You'll need to figure out 
+        # which vars to use.
+        # #projectNoStateDict #yoloswag
         item = code(tree.target)
-        body = many_to_one(tree.body, after='__d')
+        body = many_to_one(tree.body, after='(MODIFIED_VARS)')
         items = code(tree.iter)
         if len(tree.orelse) is not 0:
-            raise NotImplementedError("Not yet implemented: for-else")
-        output = '(lambda __d: %s)(reduce((lambda __d, __i:'%after + assignment_component(body, item, "__i") + '),%s,__d))'%items
+            raise NotImplementedError("'for-else' is not implemented.")
+        output = '(lambda (MODIFIED_VARS): %s)(reduce((lambda (MOD_VARS_USED), %s: %s), %s, (MOD_VARS_USED)))' % (after, item, body, items)
         return output
     elif type(tree) is ast.FunctionDef:
         args, arg_names = code(tree.args) ## of the form ('lambda x, y, z=5, *args:', ['x','y','z','args'])
         body = many_to_one(tree.body)
-        body = assignment_component(body, '__d.'+',__d.'.join(arg_names), ','.join(arg_names)) ## apply lets for d.arguments
+        ## The below commented out as part of #projectNoStateDict
+        # body = assignment_component(body, '__d.'+',__d.'.join(arg_names), ','.join(arg_names)) ## apply lets for d.arguments
         function_code = args + body
         if len(tree.decorator_list) > 0:
             for decorator in tree.decorator_list:
                 function_code = "%s(%s)" % (code(decorator), function_code)
-        return assignment_component(after, "__d."+tree.name, function_code)
+        return assignment_component(after, tree.name, function_code)
     elif type(tree) is ast.arguments:
         ## return something of the form ('lambda x, y, z=5, *args:', ['x','y','z','args'])
         padded_defaults = [None]*(len(tree.args)-len(tree.defaults)) + tree.defaults
@@ -210,26 +208,27 @@ def code_with_after(tree, after):
     elif type(tree) is ast.GeneratorExp:
         return '%s' % (' '.join([code(tree.elt)] + [code(gen) for gen in tree.generators]))
     elif type(tree) is ast.Global:
-        raise NotImplementedError('Open problem: global')
+        raise NotImplementedError("'global' is an open problem.")
     elif type(tree) is ast.Gt:
         return '>'
     elif type(tree) is ast.GtE:
         return '>='
     elif type(tree) is ast.If:
         test = code(tree.test)
-        body = many_to_one(tree.body, after='__after(__d)')
-        orelse = many_to_one(tree.orelse, after='__after(__d)')
-        return "(lambda __after: %s if %s else %s)(lambda __d: %s)" % (body, test, orelse, after)
+        ## (MODIFIED_VARS) is a tuple containing the names of the modified variables in BOTH branches
+        body = many_to_one(tree.body, after='__after((MODIFIED_VARS))')
+        orelse = many_to_one(tree.orelse, after='__after((MODIFIED_VARS))')
+        return "(lambda __after: %s if %s else %s)(lambda (MODIFIED_VARS): %s)" % (body, test, orelse, after)
     elif type(tree) is ast.IfExp:
         return "(%s if %s else %s)" % (code(tree.body), code(tree.test), code(tree.orelse))
     elif type(tree) is ast.Import:
         for alias in tree.names:
             if alias.asname is None:
                 alias.asname = alias.name
-            after = assignment_component(after, "__d.%s"%alias.asname, "__import__('%s')"%alias.name)
+            after = assignment_component(after, alias.asname, "__import__('%s')"%alias.name)
         return after
     elif type(tree) is ast.ImportFrom:
-        raise NotImplementedError('Open problem: importfrom')
+        raise NotImplementedError("'import-from' is an open problem.")
     elif type(tree) is ast.In:
         return ' in '
     elif type(tree) is ast.Index:
@@ -249,7 +248,7 @@ def code_with_after(tree, after):
     elif type(tree) is ast.Lambda:
         args, arg_names = code(tree.args)
         body = code(tree.body)
-        body = assignment_component(body, '__d.'+',__d.'.join(arg_names), ','.join(arg_names))
+        body = assignment_component(body, ','.join(arg_names), ','.join(arg_names))
         return '(' + args + body + ')'
     elif type(tree) is ast.List:
         elts = [code(elt) for elt in tree.elts]
@@ -268,7 +267,8 @@ def code_with_after(tree, after):
     elif type(tree) is ast.Mult:
         return '*'
     elif type(tree) is ast.Name:
-        return '__d.'+tree.id
+        return tree.id
+        #return '__d.'+tree.id
     elif type(tree) is ast.Not:
         return 'not '
     elif type(tree) is ast.NotEq:
@@ -292,7 +292,7 @@ def code_with_after(tree, after):
     elif type(tree) is ast.RShift:
         return '>>'
     elif type(tree) is ast.Raise:
-        raise NotImplementedError('Open problem (intractable?): raise')
+        raise NotImplementedError("'raise' is an open problem.")
     elif type(tree) is ast.Repr:
         return 'repr(%s)' % code(tree.value)
     elif type(tree) is ast.Return:
@@ -315,9 +315,9 @@ def code_with_after(tree, after):
     elif type(tree) is ast.Suite:
         return INIT_CODE % many_to_one(child_nodes(tree))
     elif type(tree) is ast.TryExcept:
-        raise NotImplementedError('Open problem (intractable?): try-except')
+        raise NotImplementedError("'try-except' is an open problem.")
     elif type(tree) is ast.TryFinally:
-        raise NotImplementedError('Open problem (intractable?): try-finally')
+        raise NotImplementedError("'try-finally' is an open problem.")
     elif type(tree) is ast.Tuple:
         elts = [code(elt) for elt in tree.elts]
         if len(elts) is 0:
@@ -334,17 +334,200 @@ def code_with_after(tree, after):
         return '(%s%s)' % (code(tree.op), code(tree.operand))
     elif type(tree) is ast.While:
         test = code(tree.test)
-        body = many_to_one(tree.body, after='__this(__d)')
-        orelse = many_to_one(tree.orelse, after='__after(__d)')
-        return "(__y(lambda __this: (lambda __d: (lambda __after: %s if %s else %s)(lambda __d: %s))))(__d)" % (body, test, orelse, after)
+        body = many_to_one(tree.body, after='__this((USED_VARS))')
+        orelse = many_to_one(tree.orelse, after='__after((MODIFIED_VARS))')
+        return "(__y(lambda __this: (lambda (USED_VARS): (lambda __after: %s if %s else %s)(lambda (MODIFIED_VARS): %s))))((USED_VARS))" % (body, test, orelse, after)
     elif type(tree) is ast.With:
-        raise NotImplementedError('Open problem: with')
+        raise NotImplementedError("'with' is an open problem.")
     elif type(tree) is ast.Yield:
-        raise NotImplementedError('Open problem: yield')
+        raise NotImplementedError("'yield' is an open problem.")
+    elif tree is None:
+        return ""
     else:
-        raise NotImplementedError('Case not caught: %s' % str(type(tree)))
+        raise NotImplementedError('case %s was not caught.' % str(type(tree)))
 
 
+
+# def used_vars(tree):
+#     if type(tree) is ast.Add:
+#     elif type(tree) is ast.And:
+#     elif type(tree) is ast.Assert:
+#     elif type(tree) is ast.Assign:
+#     elif type(tree) is ast.Attribute:
+#     elif type(tree) is ast.AugAssign:
+#     elif type(tree) is ast.BinOp:
+#     elif type(tree) is ast.BitAnd:
+#     elif type(tree) is ast.BitOr:
+#     elif type(tree) is ast.BitXor:
+#     elif type(tree) is ast.BoolOp:
+#     elif type(tree) is ast.Break:
+#     elif type(tree) is ast.Call:
+#     elif type(tree) is ast.ClassDef:
+#     elif type(tree) is ast.Compare:
+#     elif type(tree) is ast.comprehension:
+#     elif type(tree) is ast.Continue:
+#     elif type(tree) is ast.Delete:
+#     elif type(tree) is ast.Dict:
+#     elif type(tree) is ast.DictComp:
+#     elif type(tree) is ast.Div:
+#     elif type(tree) is ast.Ellipsis:
+#     elif type(tree) is ast.Eq:
+#     elif type(tree) is ast.ExceptHandler:
+#     elif type(tree) is ast.Exec:
+#     elif type(tree) is ast.Expr:
+#     elif type(tree) is ast.Expression:
+#     elif type(tree) is ast.ExtSlice:
+#     elif type(tree) is ast.FloorDiv:
+#     elif type(tree) is ast.For:
+#     elif type(tree) is ast.FunctionDef:
+#     elif type(tree) is ast.arguments:
+#     elif type(tree) is ast.GeneratorExp:
+#     elif type(tree) is ast.Global:
+#     elif type(tree) is ast.Gt:
+#     elif type(tree) is ast.GtE:
+#     elif type(tree) is ast.If:
+#     elif type(tree) is ast.IfExp:
+#     elif type(tree) is ast.Import:
+#     elif type(tree) is ast.ImportFrom:
+#     elif type(tree) is ast.In:
+#     elif type(tree) is ast.Index:
+#     elif type(tree) is ast.Interactive:
+#     elif type(tree) is ast.Invert:
+#     elif type(tree) is ast.Is:
+#     elif type(tree) is ast.IsNot:
+#     elif type(tree) is ast.LShift:
+#     elif type(tree) is ast.keyword:
+#     elif type(tree) is ast.Lambda:
+#     elif type(tree) is ast.List:
+#     elif type(tree) is ast.ListComp:
+#     elif type(tree) is ast.Lt:
+#     elif type(tree) is ast.LtE:
+#     elif type(tree) is ast.Mod:
+#     elif type(tree) is ast.Module:
+#     elif type(tree) is ast.Mult:
+#     elif type(tree) is ast.Name:
+#     elif type(tree) is ast.Not:
+#     elif type(tree) is ast.NotEq:
+#     elif type(tree) is ast.NotIn:
+#     elif type(tree) is ast.Num:
+#     elif type(tree) is ast.Or:
+#     elif type(tree) is ast.Pass:
+#     elif type(tree) is ast.Pow:
+#     elif type(tree) is ast.Print:
+#     elif type(tree) is ast.RShift:
+#     elif type(tree) is ast.Raise:
+#     elif type(tree) is ast.Repr:
+#     elif type(tree) is ast.Return:
+#     elif type(tree) is ast.Set:
+#     elif type(tree) is ast.SetComp:
+#     elif type(tree) is ast.Slice:
+#     elif type(tree) is ast.Str:
+#     elif type(tree) is ast.Sub:
+#     elif type(tree) is ast.Subscript:
+#     elif type(tree) is ast.Suite:
+#     elif type(tree) is ast.TryExcept:
+#     elif type(tree) is ast.TryFinally:
+#     elif type(tree) is ast.Tuple:
+#     elif type(tree) is ast.UAdd:
+#     elif type(tree) is ast.USub:
+#     elif type(tree) is ast.UnaryOp:
+#     elif type(tree) is ast.While:
+#     elif type(tree) is ast.With:
+#     elif type(tree) is ast.Yield:
+#     else:
+#         raise NotImplementedError('Case not caught: %s' % str(type(tree)))
+
+    
+# def modified_vars(tree):
+#     if type(tree) is ast.Add:
+#     elif type(tree) is ast.And:
+#     elif type(tree) is ast.Assert:
+#     elif type(tree) is ast.Assign:
+#     elif type(tree) is ast.Attribute:
+#     elif type(tree) is ast.AugAssign:
+#     elif type(tree) is ast.BinOp:
+#     elif type(tree) is ast.BitAnd:
+#     elif type(tree) is ast.BitOr:
+#     elif type(tree) is ast.BitXor:
+#     elif type(tree) is ast.BoolOp:
+#     elif type(tree) is ast.Break:
+#     elif type(tree) is ast.Call:
+#     elif type(tree) is ast.ClassDef:
+#     elif type(tree) is ast.Compare:
+#     elif type(tree) is ast.comprehension:
+#     elif type(tree) is ast.Continue:
+#     elif type(tree) is ast.Delete:
+#     elif type(tree) is ast.Dict:
+#     elif type(tree) is ast.DictComp:
+#     elif type(tree) is ast.Div:
+#     elif type(tree) is ast.Ellipsis:
+#     elif type(tree) is ast.Eq:
+#     elif type(tree) is ast.ExceptHandler:
+#     elif type(tree) is ast.Exec:
+#     elif type(tree) is ast.Expr:
+#     elif type(tree) is ast.Expression:
+#     elif type(tree) is ast.ExtSlice:
+#     elif type(tree) is ast.FloorDiv:
+#     elif type(tree) is ast.For:
+#     elif type(tree) is ast.FunctionDef:
+#     elif type(tree) is ast.arguments:
+#     elif type(tree) is ast.GeneratorExp:
+#     elif type(tree) is ast.Global:
+#     elif type(tree) is ast.Gt:
+#     elif type(tree) is ast.GtE:
+#     elif type(tree) is ast.If:
+#     elif type(tree) is ast.IfExp:
+#     elif type(tree) is ast.Import:
+#     elif type(tree) is ast.ImportFrom:
+#     elif type(tree) is ast.In:
+#     elif type(tree) is ast.Index:
+#     elif type(tree) is ast.Interactive:
+#     elif type(tree) is ast.Invert:
+#     elif type(tree) is ast.Is:
+#     elif type(tree) is ast.IsNot:
+#     elif type(tree) is ast.LShift:
+#     elif type(tree) is ast.keyword:
+#     elif type(tree) is ast.Lambda:
+#     elif type(tree) is ast.List:
+#     elif type(tree) is ast.ListComp:
+#     elif type(tree) is ast.Lt:
+#     elif type(tree) is ast.LtE:
+#     elif type(tree) is ast.Mod:
+#     elif type(tree) is ast.Module:
+#     elif type(tree) is ast.Mult:
+#     elif type(tree) is ast.Name:
+#     elif type(tree) is ast.Not:
+#     elif type(tree) is ast.NotEq:
+#     elif type(tree) is ast.NotIn:
+#     elif type(tree) is ast.Num:
+#     elif type(tree) is ast.Or:
+#     elif type(tree) is ast.Pass:
+#     elif type(tree) is ast.Pow:
+#     elif type(tree) is ast.Print:
+#     elif type(tree) is ast.RShift:
+#     elif type(tree) is ast.Raise:
+#     elif type(tree) is ast.Repr:
+#     elif type(tree) is ast.Return:
+#     elif type(tree) is ast.Set:
+#     elif type(tree) is ast.SetComp:
+#     elif type(tree) is ast.Slice:
+#     elif type(tree) is ast.Str:
+#     elif type(tree) is ast.Sub:
+#     elif type(tree) is ast.Subscript:
+#     elif type(tree) is ast.Suite:
+#     elif type(tree) is ast.TryExcept:
+#     elif type(tree) is ast.TryFinally:
+#     elif type(tree) is ast.Tuple:
+#     elif type(tree) is ast.UAdd:
+#     elif type(tree) is ast.USub:
+#     elif type(tree) is ast.UnaryOp:
+#     elif type(tree) is ast.While:
+#     elif type(tree) is ast.With:
+#     elif type(tree) is ast.Yield:
+#     else:
+#         raise NotImplementedError('Case not caught: %s' % str(type(tree)))
+
+## TODO same for modified_vars
 
 
 ## The entry point for everything.
