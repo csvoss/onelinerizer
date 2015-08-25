@@ -229,6 +229,13 @@ def code_with_after(tree, after):
             after = assignment_component(after, "__d.%s"%alias.asname, "__import__('%s')"%alias.name)
         return after
     elif type(tree) is ast.ImportFrom:
+        return '(lambda __mod: %s)(__import__(%r, fromlist=%r))' % (
+            assignment_component(
+                after,
+                ','.join('__d.' + (alias.name if alias.asname is None else alias.asname) for alias in tree.names),
+                ','.join('__mod.' + alias.name for alias in tree.names)),
+            tree.module,
+            tuple(alias.name for alias in tree.names))
         raise NotImplementedError('Open problem: importfrom')
     elif type(tree) is ast.In:
         return ' in '
