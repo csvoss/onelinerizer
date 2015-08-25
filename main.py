@@ -101,7 +101,7 @@ def code_with_after(tree, after):
         targets = [code(target) for target in tree.targets]
         value = code(tree.value)
         targets = ','.join(targets)
-        return assignment_component(after, targets, value)
+        return assignment_component(after, targets, value if len(tree.targets) == 1 else '[%s]*%d' % (value, len(tree.targets)))
     elif type(tree) is ast.Attribute:
         return '%s.%s' % (code(tree.value), tree.attr)
     elif type(tree) is ast.AugAssign:
