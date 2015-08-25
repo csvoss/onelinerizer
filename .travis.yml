@@ -1,0 +1,5 @@
+language: python
+env:
+  - PYTHON=python2.6
+  - PYTHON=python2.7
+script: virtualenv venv -p $PYTHON && . venv/bin/activate && ./unittest.sh
