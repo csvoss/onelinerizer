@@ -1,6 +1,8 @@
 One-liner
 =========
 
+[![Build Status](https://travis-ci.org/csvoss/oneliner.svg?branch=master)](https://travis-ci.org/csvoss/oneliner)
+
 **Live demo at [onelinepy.herokuapp.com](http://onelinepy.herokuapp.com/)!**
 
 Convert any Python file into a single line of code which has the same functionality.
