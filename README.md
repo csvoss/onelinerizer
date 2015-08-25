@@ -1,11 +1,11 @@
 One-liner
 =========
 
+**Live demo at [onelinepy.herokuapp.com](http://onelinepy.herokuapp.com/)!**
+
 Convert any Python file into a single line of code which has the same functionality.
 
-No newlines allowed.
-
-No semicolons allowed, either.
+No newlines allowed. No semicolons allowed, either.
 
 Installation and Usage
 ----------------------
