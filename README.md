@@ -98,7 +98,7 @@ That would be against the spirit of this exercise. Why pass up a perfectly good 
 
 Analysis
 --------
-### Space
+### Output program size
 
 *O(n)*. No code is ever duplicated, so the one-lined code produced is linear in the size of the input code.
 
