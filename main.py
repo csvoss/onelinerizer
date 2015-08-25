@@ -224,9 +224,11 @@ def code_with_after(tree, after):
         return "(%s if %s else %s)" % (code(tree.body), code(tree.test), code(tree.orelse))
     elif type(tree) is ast.Import:
         for alias in tree.names:
+            ids = alias.name.split('.')
             if alias.asname is None:
-                alias.asname = alias.name
-            after = assignment_component(after, "__d.%s"%alias.asname, "__import__('%s')"%alias.name)
+                after = assignment_component(after, "__d.%s"%ids[0], "__import__(%r)"%alias.name)
+            else:
+                after = assignment_component(after, "__d.%s"%alias.asname, '.'.join(["__import__(%r)"%alias.name] + ids[1:]))
         return after
     elif type(tree) is ast.ImportFrom:
         raise NotImplementedError('Open problem: importfrom')
