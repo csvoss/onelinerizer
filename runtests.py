@@ -11,6 +11,9 @@ class TestOneLine(unittest.TestCase):
         pass
 
 def make_test(filename):
+    """Return a function that verifies that the file and its onelined version
+    both output the same."""
+
     def new_test(self):
         with open(filename, 'r') as fi:
             self.longMessage = True
@@ -22,6 +25,7 @@ def make_test(filename):
     return new_test
 
 class FakeStdin(object):
+    """Sometimes tests use raw_input; this feeds those deterministically."""
     def __init__(self):
         self.counter = 0
     def readline(self):
@@ -29,6 +33,8 @@ class FakeStdin(object):
         return str(self.counter)
 
 def capture_exec(code_string):
+    """Run the code with FakeStdin as stdin, return its stdout."""
+    ## TODO: Seed the RNG.
     new_stdout = StringIO()
     old_stdout = sys.stdout
     old_stdin = sys.stdin
@@ -45,6 +51,7 @@ def capture_exec(code_string):
     sys.stdin = old_stdin
     return new_stdout.getvalue()
 
+## Monkey-patch 
 for subdir, dirs, files in os.walk(TEST_DIRECTORY):
     for filename in files:
         if not 'unimplemented' in subdir:
@@ -54,3 +61,4 @@ for subdir, dirs, files in os.walk(TEST_DIRECTORY):
 
 if __name__ == '__main__':
     unittest.main()
+
