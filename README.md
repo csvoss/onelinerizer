@@ -137,7 +137,6 @@ in your original Python code. (oneliner will not place this command in for you.)
 Not Implemented
 ---------------
 * classes and OOP
-* from foo import *
 
 Open Problems
 -------------
