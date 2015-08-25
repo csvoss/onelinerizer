@@ -187,7 +187,7 @@ def code_with_after(tree, after):
     elif type(tree) is ast.FunctionDef:
         args, arg_names = code(tree.args) ## of the form ('lambda x, y, z=5, *args:', ['x','y','z','args'])
         body = many_to_one(tree.body)
-        body = assignment_component(body, '__d.'+',__d.'.join(arg_names), ','.join(arg_names)) ## apply lets for d.arguments
+        body = assignment_component(body, ','.join('__d.' + name for name in arg_names) or '[]', ','.join(arg_names)) ## apply lets for d.arguments
         function_code = args + body
         if len(tree.decorator_list) > 0:
             for decorator in tree.decorator_list:
@@ -224,11 +224,20 @@ def code_with_after(tree, after):
         return "(%s if %s else %s)" % (code(tree.body), code(tree.test), code(tree.orelse))
     elif type(tree) is ast.Import:
         for alias in tree.names:
+            ids = alias.name.split('.')
             if alias.asname is None:
-                alias.asname = alias.name
-            after = assignment_component(after, "__d.%s"%alias.asname, "__import__('%s')"%alias.name)
+                after = assignment_component(after, "__d.%s"%ids[0], "__import__(%r)"%alias.name)
+            else:
+                after = assignment_component(after, "__d.%s"%alias.asname, '.'.join(["__import__(%r)"%alias.name] + ids[1:]))
         return after
     elif type(tree) is ast.ImportFrom:
+        return '(lambda __mod: %s)(__import__(%r, fromlist=%r))' % (
+            assignment_component(
+                after,
+                ','.join('__d.' + (alias.name if alias.asname is None else alias.asname) for alias in tree.names),
+                ','.join('__mod.' + alias.name for alias in tree.names)),
+            tree.module,
+            tuple(alias.name for alias in tree.names))
         raise NotImplementedError('Open problem: importfrom')
     elif type(tree) is ast.In:
         return ' in '
@@ -249,7 +258,7 @@ def code_with_after(tree, after):
     elif type(tree) is ast.Lambda:
         args, arg_names = code(tree.args)
         body = code(tree.body)
-        body = assignment_component(body, '__d.'+',__d.'.join(arg_names), ','.join(arg_names))
+        body = assignment_component(body, ','.join('__d.' + name for name in arg_names) or '[]', ','.join(arg_names))
         return '(' + args + body + ')'
     elif type(tree) is ast.List:
         elts = [code(elt) for elt in tree.elts]

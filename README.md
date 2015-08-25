@@ -1,6 +1,8 @@
 One-liner
 =========
 
+[![Build Status](https://travis-ci.org/csvoss/oneliner.svg?branch=master)](https://travis-ci.org/csvoss/oneliner)
+
 **Live demo at [onelinepy.herokuapp.com](http://onelinepy.herokuapp.com/)!**
 
 Convert any Python file into a single line of code which has the same functionality.
@@ -137,7 +139,7 @@ in your original Python code. (oneliner will not place this command in for you.)
 Not Implemented
 ---------------
 * classes and OOP
-* from foo import bar
+* from foo import *
 
 Open Problems
 -------------
@@ -148,3 +150,9 @@ Open Problems
 * exec
 * with
 * yield
+
+
+Further Reading
+---------------
+* [StackOverflow](http://stackoverflow.com/questions/2573135/python-progression-path-from-apprentice-to-guru/2576240#2576240) post about how functional programming helps with Python mastery
+* [On writing Python one-liners](http://blog.sigfpe.com/2008/09/on-writing-python-one-liners.html) -- a similar idea
