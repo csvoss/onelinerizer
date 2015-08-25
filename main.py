@@ -311,10 +311,10 @@ def code_with_after(tree, after):
     elif type(tree) is ast.SetComp:
         return '{%s}' % (' '.join([code(tree.elt)] + [code(gen) for gen in tree.generators]))
     elif type(tree) is ast.Slice:
-        if tree.step is None:
-            return '%s:%s' % (code(tree.lower), code(tree.upper))
-        else:
-            return '%s:%s:%s' % (code(tree.lower), code(tree.upper), code(tree.step))
+        return '%s:%s%s' % (
+            '' if tree.lower is None else code(tree.lower),
+            '' if tree.upper is None else code(tree.upper),
+            '' if tree.step is None else ':' + code(tree.step))
     elif type(tree) is ast.Str:
         return repr(tree.s)
     elif type(tree) is ast.Sub:
