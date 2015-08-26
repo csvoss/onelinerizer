@@ -14,6 +14,7 @@ import sys
 
 
 DUNDER_PRINT = "__print"
+DUNDER_EXEC = "__exec"
 DUNDER_Y = "__y"
 DUNDER_D = "__d"
 
@@ -39,10 +40,11 @@ def get_init_code():
     ## TODO: Short-circuit to something far simpler if the program has but one print statement.
 
     need_print = True ## true if prints anywhere. TODO.
+    need_exec = True ## true if execs anywhere. TODO.
     need_y_combinator = True ## true if uses a while. TODO.
     need_state_dict = True ## true if uses anything involving __d -- while, for, if. Also governs the list comprehension trick. TODO.
     need_dunderbuiltin = need_print or need_state_dict
-    need_sys = True ## true if anything uses raise with no arguments. TODO.
+    need_sys = True ## true if anything uses raise with no arguments, del a[:], or del a[n:]. TODO.
 
     output = "%s"
     if need_dunderbuiltin:
@@ -51,6 +53,8 @@ def get_init_code():
     arguments = {}
     if need_print:
         arguments[DUNDER_PRINT] = "__builtin__.__dict__['print']"
+    if need_exec:
+        arguments[DUNDER_EXEC] = "__import__('trace').Trace(count=False, trace=False).runctx"
     if need_y_combinator:
         arguments[DUNDER_Y] = "(lambda f: (lambda x: x(x))(lambda y: f(lambda *args: y(y)(*args))))"
     if need_state_dict:
@@ -92,6 +96,41 @@ def assignment_component(after, targets, value):
     ## return "(lambda %s: %s)(%s)" % (targets, after, value)
     return '[%s for %s in [(%s)]][0]' % (after, targets, value)
 
+
+def slice_repr(slice):
+    if type(slice) is ast.Ellipsis:
+        return 'Ellipsis'
+    elif type(slice) is ast.Slice:
+        return 'slice(%s, %s, %s)' % (
+            'None' if slice.lower is None else code(slice.lower),
+            'None' if slice.upper is None else code(slice.upper),
+            'None' if slice.step is None else code(slice.step))
+    elif type(slice) is ast.ExtSlice:
+        return '(%s)' % ' '.join(slice_repr(dim) + ',' for dim in slice.dims)
+    elif type(slice) is ast.Index:
+        return code(slice.value)
+    else:
+        raise NotImplementedError('Case not caught: %s' % str(type(target)))
+
+def delete_code(target):
+    if type(target) is ast.Attribute:
+        return 'delattr(%s, %r)' % (code(target.value), target.attr)
+    elif type(target) is ast.Subscript:
+        if type(target.slice) is ast.Slice and target.slice.step is None:
+            return lambda_function({'__value': code(target.value)}) % \
+                ("getattr(__value, '__delslice__', lambda __lower, __upper: __value.__delitem__(slice(%s, %s)))(%s, %s)" % \
+                 ('None' if target.slice.lower is None else '__lower',
+                  'None' if target.slice.upper is None else '__upper',
+                  '0' if target.slice.lower is None else code(target.slice.lower),
+                  'sys.maxint' if target.slice.upper is None else code(target.slice.upper)))
+        else:
+            return '%s.__delitem__(%s)' % (code(target.value), slice_repr(target.slice))
+    elif type(target) is ast.Name:
+        return 'delattr(__d, %r)' % target.id
+    elif type(target) in (ast.List, ast.Tuple):
+        return ', '.join(map(delete_code, target.elts))
+    else:
+        raise NotImplementedError('Case not caught: %s' % str(type(target)))
 
 def code_with_after(tree, after):
     if type(tree) is ast.Add:
@@ -154,9 +193,7 @@ def code_with_after(tree, after):
     elif type(tree) is ast.Continue:
         raise NotImplementedError('Open problem: continue')
     elif type(tree) is ast.Delete:
-        raise NotImplementedError('Not yet implemented: delete')
-        ## Note also: globals() and locals() are useful here
-        ## You can pop() from globals and/or locals to implement this
+        return '(lambda *___: %s)(%s)' % (after, ', '.join(map(delete_code, tree.targets)))
     elif type(tree) is ast.Dict:
         return '{%s}' % ','.join([('%s:%s'%(code(k), code(v))) for (k,v) in zip(tree.keys, tree.values)])
     elif type(tree) is ast.DictComp:
@@ -170,14 +207,21 @@ def code_with_after(tree, after):
     elif type(tree) is ast.ExceptHandler:
         raise NotImplementedError('Open problem: except')
     elif type(tree) is ast.Exec:
-        raise NotImplementedError('Open problem: exec')
+        exec_code = '__exec(%s, %s, %s)' % (
+            code(tree.body),
+            '__d.__dict__' if tree.globals is None else code(tree.globals),
+            '__d.__dict__' if tree.locals is None else code(tree.locals))
+        if after != 'None':
+            return '(lambda ___: %s)(%s)' % (after, exec_code)
+        else:
+            return exec_code
     elif type(tree) is ast.Expr:
         code_to_exec = code(tree.value)
         return '(lambda ___: %s)(%s)' % (after, code_to_exec) ## TODO: ensure ___ isn't taken
     elif type(tree) is ast.Expression:
         return code(tree.body)
     elif type(tree) is ast.ExtSlice:
-        return ', '.join([code(dim) for dim in tree.dims])
+        return ' '.join(code(dim) + ',' for dim in tree.dims)
     elif type(tree) is ast.FloorDiv:
         return '//'
     elif type(tree) is ast.For:
@@ -298,7 +342,7 @@ def code_with_after(tree, after):
         return '**'
     elif type(tree) is ast.Print:
         to_print = ','.join([code(x) for x in tree.values])
-        if after is not 'None':
+        if after != 'None':
             return '(lambda ___: %s)(__print(%s))' % (after, to_print) ## TODO: ensure ___ isn't taken
         else:
             return '__print(%s)' % to_print
