@@ -362,13 +362,17 @@ def to_one_line(original):
     ## :: string
     global INIT_CODE
 
+    t = ast.parse(original)
+
     original = original.strip()
 
     ## If there's only one line anyways, be lazy
-    if len(original.splitlines()) == 1:
+    if len(original.splitlines()) == 1 and \
+       type(t) is ast.Module and \
+       len(t.body) == 1 and \
+       type(t.body[0]) in (ast.Delete, ast.Assign, ast.AugAssign, ast.Print, ast.Raise, ast.Assert, ast.Import, ast.ImportFrom, ast.Exec, ast.Global, ast.Expr, ast.Pass):
         return original
 
-    t = ast.parse(original)
     INIT_CODE = get_init_code(t)
 
     return code(t)
