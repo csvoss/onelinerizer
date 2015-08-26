@@ -226,18 +226,19 @@ def code_with_after(tree, after):
         for alias in tree.names:
             ids = alias.name.split('.')
             if alias.asname is None:
-                after = assignment_component(after, "__d.%s"%ids[0], "__import__(%r)"%alias.name)
+                after = assignment_component(after, "__d.%s"%ids[0], "__import__(%r, __d.__dict__, __d.__dict__)"%alias.name)
             else:
-                after = assignment_component(after, "__d.%s"%alias.asname, '.'.join(["__import__(%r)"%alias.name] + ids[1:]))
+                after = assignment_component(after, "__d.%s"%alias.asname, '.'.join(["__import__(%r, __d.__dict__, __d.__dict__)"%alias.name] + ids[1:]))
         return after
     elif type(tree) is ast.ImportFrom:
-        return '(lambda __mod: %s)(__import__(%r, fromlist=%r))' % (
+        return '(lambda __mod: %s)(__import__(%r, __d.__dict__, __d.__dict__, %r, %r))' % (
             assignment_component(
                 after,
                 ','.join('__d.' + (alias.name if alias.asname is None else alias.asname) for alias in tree.names),
                 ','.join('__mod.' + alias.name for alias in tree.names)),
-            tree.module,
-            tuple(alias.name for alias in tree.names))
+            '' if tree.module is None else tree.module,
+            tuple(alias.name for alias in tree.names),
+            tree.level)
         raise NotImplementedError('Open problem: importfrom')
     elif type(tree) is ast.In:
         return ' in '
