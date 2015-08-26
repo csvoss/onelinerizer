@@ -145,7 +145,6 @@ Open Problems
 -------------
 * try/except/finally
 * global variables
-* del
 * exec
 * with
 * yield
