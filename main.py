@@ -178,12 +178,16 @@ def code_with_after(tree, after):
         return '//'
     elif type(tree) is ast.For:
         item = code(tree.target)
-        body = many_to_one(tree.body, after='__d')
+        body = many_to_one(tree.body, after='__this(__d)')
         items = code(tree.iter)
-        if len(tree.orelse) is not 0:
-            raise NotImplementedError("Not yet implemented: for-else")
-        output = '(lambda __d: %s)(reduce((lambda __d, __i:'%after + assignment_component(body, item, "__i") + '),%s,__d))'%items
-        return output
+        orelse = many_to_one(tree.orelse, after='__after(__d)')
+        return lambda_function({'__items': 'iter(%s)' % items, '__sentinel': '[]', '__after': 'lambda __d: %s' % after}) % \
+            ('__y(lambda __this: lambda __d: %s)(__d)' %
+             (lambda_function({'__i': 'next(__items, __sentinel)'}) %
+              ('%s if __i is not __sentinel else %s' %
+               (lambda_function({'__break': '__after', '__continue': '__this'}) %
+                assignment_component(body, '%s' % item, '__i'),
+                orelse))))
     elif type(tree) is ast.FunctionDef:
         args, arg_names = code(tree.args) ## of the form ('lambda x, y, z=5, *args:', ['x','y','z','args'])
         body = many_to_one(tree.body)
