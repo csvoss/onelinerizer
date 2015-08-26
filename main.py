@@ -26,7 +26,7 @@ def lambda_function(arguments_to_values, prettyprinted=False):
     if prettyprinted:
         raise NotImplementedError
     else:
-        return "(lambda " + (COMMA.join(arguments_to_values.keys())) + ": " + CONTINUATION + ")(" + (COMMA.join(arguments_to_values.values())) + ")"
+        return "(lambda " + COMMA.join(arguments_to_values.keys()).replace("%", "%%") + ": " + CONTINUATION + ")(" + COMMA.join(arguments_to_values.values()).replace("%", "%%") + ")"
 
 
 ### Actual logicky code begins here
@@ -121,7 +121,7 @@ def code_with_after(tree, after):
     elif type(tree) is ast.BoolOp:
         return '(%s)' % code(tree.op).join([code(val) for val in tree.values])
     elif type(tree) is ast.Break:
-        raise NotImplementedError('Open problem: break')
+        return '__break(__d)'
     elif type(tree) is ast.Call:
         func = code(tree.func)
         args = [code(arg) for arg in tree.args]
@@ -148,7 +148,7 @@ def code_with_after(tree, after):
     elif type(tree) is ast.comprehension:
         return ('for %s in %s' % (code(tree.target), code(tree.iter))) + ''.join([' if '+code(i) for i in tree.ifs])
     elif type(tree) is ast.Continue:
-        raise NotImplementedError('Open problem: continue')
+        return '__continue(__d)'
     elif type(tree) is ast.Delete:
         raise NotImplementedError('Not yet implemented: delete')
         ## Note also: globals() and locals() are useful here
@@ -345,7 +345,10 @@ def code_with_after(tree, after):
         test = code(tree.test)
         body = many_to_one(tree.body, after='__this(__d)')
         orelse = many_to_one(tree.orelse, after='__after(__d)')
-        return "(__y(lambda __this: (lambda __d: (lambda __after: %s if %s else %s)(lambda __d: %s))))(__d)" % (body, test, orelse, after)
+        return lambda_function({'__after': 'lambda __d: %s' % after}) % \
+            ('__y(lambda __this: lambda __d: %s if %s else %s)(__d)' %
+             (lambda_function({'__break': '__after', '__continue': '__this'}) % body,
+              test, orelse))
     elif type(tree) is ast.With:
         raise NotImplementedError('Open problem: with')
     elif type(tree) is ast.Yield:
