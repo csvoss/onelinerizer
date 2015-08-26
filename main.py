@@ -32,7 +32,7 @@ def lambda_function(arguments_to_values, prettyprinted=False):
 ### Actual logicky code begins here
 
 
-def get_init_code(tree):
+def get_init_code():
     ## Return a string with %s somewhere in.
     ## INIT_CODE = "(lambda __builtin__: (lambda __print, __y, __d: %s)(__builtin__.__dict__['print'],(lambda f: (lambda x: x(x))(lambda y: f(lambda *args: y(y)(*args)))),type('StateDict',(),__builtin__.__dict__)()))(__import__('__builtin__'))"
 
@@ -374,7 +374,7 @@ def to_one_line(original):
 
     t = ast.parse(original)
 
-    original = original.strip()
+    ##original = original.strip()
 
     ## If there's only one line anyways, be lazy
     if len(original.splitlines()) == 1 and \
@@ -383,7 +383,7 @@ def to_one_line(original):
        type(t.body[0]) in (ast.Delete, ast.Assign, ast.AugAssign, ast.Print, ast.Raise, ast.Assert, ast.Import, ast.ImportFrom, ast.Exec, ast.Global, ast.Expr, ast.Pass):
         return original
 
-    INIT_CODE = get_init_code(t)
+    INIT_CODE = get_init_code()
 
     return code(t)
 
