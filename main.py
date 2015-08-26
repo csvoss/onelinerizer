@@ -99,7 +99,8 @@ def code_with_after(tree, after):
     elif type(tree) is ast.And:
         return ' and '
     elif type(tree) is ast.Assert:
-        raise NotImplementedError('Open problem: assert')
+        return '(%s if %s else ([] for [] in []).throw(AssertionError%s))' % (
+            after, code(tree.test), '' if tree.msg is None else '(%s)' % code(tree.msg))
     elif type(tree) is ast.Assign:
         targets = [code(target) for target in tree.targets]
         value = code(tree.value)
