@@ -144,7 +144,7 @@ Not Implemented
 Open Problems
 -------------
 * try/except/finally
-* raise/assert
+* assert
 * global variables
 * del
 * with

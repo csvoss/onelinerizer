@@ -44,6 +44,7 @@ def get_init_code(tree):
     need_y_combinator = True ## true if uses a while. TODO.
     need_state_dict = True ## true if uses anything involving __d -- while, for, if. Also governs the list comprehension trick. TODO.
     need_dunderbuiltin = need_print or need_state_dict
+    need_sys = True ## true if anything uses raise with no arguments. TODO.
 
     output = "%s"
     if need_dunderbuiltin:
@@ -58,6 +59,8 @@ def get_init_code(tree):
         arguments[DUNDER_Y] = "(lambda f: (lambda x: x(x))(lambda y: f(lambda *args: y(y)(*args))))"
     if need_state_dict:
         arguments[DUNDER_D] = "type('StateDict',(),__builtin__.__dict__)()"
+    if need_sys:
+        arguments['sys'] = "__import__('sys')"
 
     if len(arguments.keys()) > 0:
         output = output % lambda_function(arguments)
@@ -312,7 +315,13 @@ def code_with_after(tree, after):
     elif type(tree) is ast.RShift:
         return '>>'
     elif type(tree) is ast.Raise:
-        raise NotImplementedError('Open problem: raise')
+        if tree.type is None:
+            return '([] for [] in []).throw(*sys.exc_info())'
+        else:
+            return '([] for [] in []).throw(%s%s%s)' % (
+                code(tree.type),
+                '' if tree.inst is None else ', ' + code(tree.inst),
+                '' if tree.tback is None else ', ' + code(tree.tback))
     elif type(tree) is ast.Repr:
         return 'repr(%s)' % code(tree.value)
     elif type(tree) is ast.Return:
