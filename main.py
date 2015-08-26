@@ -231,14 +231,25 @@ def code_with_after(tree, after):
                 after = assignment_component(after, "__d.%s"%alias.asname, '.'.join(["__import__(%r)"%alias.name] + ids[1:]))
         return after
     elif type(tree) is ast.ImportFrom:
-        return '(lambda __mod: %s)(__import__(%r, fromlist=%r))' % (
-            assignment_component(
-                after,
-                ','.join('__d.' + (alias.name if alias.asname is None else alias.asname) for alias in tree.names),
-                ','.join('__mod.' + alias.name for alias in tree.names)),
-            tree.module,
-            tuple(alias.name for alias in tree.names))
-        raise NotImplementedError('Open problem: importfrom')
+        names_to_assign = tuple([
+            (ast_name.asname or ast_name.name, ast_name.name)
+            for ast_name in tree.names
+        ])
+        return """(lambda __d: {0})(([
+            __d.__dict__.__setitem__(
+                asname,
+                getattr(
+                    __import__(
+                        {1!r},
+                        fromlist=[str("trash")],
+                        level={2!r},
+                    ),
+                    name,
+                )
+            )
+            for asname, name in {3!r}
+        ] + [__d])[-1])
+        """.format(after, tree.module, tree.level, names_to_assign).replace('\n', '')
     elif type(tree) is ast.In:
         return ' in '
     elif type(tree) is ast.Index:
