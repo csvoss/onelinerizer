@@ -14,6 +14,7 @@ import sys
 
 
 DUNDER_PRINT = "__print"
+DUNDER_EXEC = "__exec"
 DUNDER_Y = "__y"
 DUNDER_D = "__d"
 
@@ -39,6 +40,7 @@ def get_init_code(tree):
     ## TODO: Short-circuit to something far simpler if the program has but one print statement.
 
     need_print = True ## true if prints anywhere. TODO.
+    need_exec = True ## true if execs anywhere. TODO.
     need_y_combinator = True ## true if uses a while. TODO.
     need_state_dict = True ## true if uses anything involving __d -- while, for, if. Also governs the list comprehension trick. TODO.
     need_dunderbuiltin = need_print or need_state_dict
@@ -51,6 +53,8 @@ def get_init_code(tree):
     arguments = {}
     if need_print:
         arguments[DUNDER_PRINT] = "__builtin__.__dict__['print']"
+    if need_exec:
+        arguments[DUNDER_EXEC] = "__import__('trace').Trace(count=False, trace=False).runctx"
     if need_y_combinator:
         arguments[DUNDER_Y] = "(lambda f: (lambda x: x(x))(lambda y: f(lambda *args: y(y)(*args))))"
     if need_state_dict:
@@ -203,7 +207,14 @@ def code_with_after(tree, after):
     elif type(tree) is ast.ExceptHandler:
         raise NotImplementedError('Open problem: except')
     elif type(tree) is ast.Exec:
-        raise NotImplementedError('Open problem: exec')
+        exec_code = '__exec(%s, %s, %s)' % (
+            code(tree.body),
+            '__d.__dict__' if tree.globals is None else code(tree.globals),
+            '__d.__dict__' if tree.locals is None else code(tree.locals))
+        if after != 'None':
+            return '(lambda ___: %s)(%s)' % (after, exec_code)
+        else:
+            return exec_code
     elif type(tree) is ast.Expr:
         code_to_exec = code(tree.value)
         return '(lambda ___: %s)(%s)' % (after, code_to_exec) ## TODO: ensure ___ isn't taken
@@ -331,7 +342,7 @@ def code_with_after(tree, after):
         return '**'
     elif type(tree) is ast.Print:
         to_print = ','.join([code(x) for x in tree.values])
-        if after is not 'None':
+        if after != 'None':
             return '(lambda ___: %s)(__print(%s))' % (after, to_print) ## TODO: ensure ___ isn't taken
         else:
             return '__print(%s)' % to_print
