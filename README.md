@@ -147,7 +147,6 @@ Open Problems
 * raise/assert
 * global variables
 * del
-* exec
 * with
 * yield
 
