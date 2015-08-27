@@ -150,8 +150,12 @@ def code_with_after(tree, after):
     elif type(tree) is ast.AugAssign:
         target = code(tree.target)
         op = code(tree.op)
+        iop = type(tree.op).__name__.lower()
+        if iop.startswith('bit'):
+            iop = iop[len('bit'):]
+        iop = '__i%s__' % iop
         value = code(tree.value)
-        value = "%s%s%s" % (target, op, value)
+        value = '(lambda __target, __value: (lambda __ret: __target %s __value if __ret is NotImplemented else __ret)(getattr(__target, %r, lambda other: NotImplemented)(__value)))(%s, %s)' % (op, iop, target, value)
         return assignment_component(after, target, value)
     elif type(tree) is ast.BinOp:
         return '(%s%s%s)' % (code(tree.left), code(tree.op), code(tree.right))
