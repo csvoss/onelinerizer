@@ -117,6 +117,19 @@ unaryop_code = {
     ast.USub: '-',
 }
 
+cmpop_code = {
+    ast.Eq: '==',
+    ast.NotEq: '!=',
+    ast.Lt: '<',
+    ast.LtE: '<=',
+    ast.Gt: '>',
+    ast.GtE: '>=',
+    ast.Is: ' is ',
+    ast.IsNot: ' is not ',
+    ast.In: ' in ',
+    ast.NotIn: ' not in ',
+}
+
 def many_to_one(trees, after='None'):
     # trees :: [Tree]
     # return :: string
@@ -233,7 +246,7 @@ def code_with_after(tree, after, init_code=None):
     elif type(tree) is ast.Compare:
         assert len(tree.ops) == len(tree.comparators)
         return code(tree.left) + ''.join(
-            [code(tree.ops[i]) + code(tree.comparators[i])
+            [cmpop_code[type(tree.ops[i])] + code(tree.comparators[i])
              for i in range(len(tree.ops))])
     elif type(tree) is ast.comprehension:
         return (('for %s in %s' % (code(tree.target), code(tree.iter))) +
@@ -251,8 +264,6 @@ def code_with_after(tree, after, init_code=None):
                                   [code(gen) for gen in tree.generators]))
     elif type(tree) is ast.Ellipsis:
         return '...'
-    elif type(tree) is ast.Eq:
-        return '=='
     elif type(tree) is ast.ExceptHandler:
         raise NotImplementedError('Open problem: except')
     elif type(tree) is ast.Exec:
@@ -319,10 +330,6 @@ def code_with_after(tree, after, init_code=None):
                                   [code(gen) for gen in tree.generators]))
     elif type(tree) is ast.Global:
         raise NotImplementedError('Open problem: global')
-    elif type(tree) is ast.Gt:
-        return '>'
-    elif type(tree) is ast.GtE:
-        return '>='
     elif type(tree) is ast.If:
         test = code(tree.test)
         body = many_to_one(tree.body, after='__after(__d)')
@@ -354,16 +361,10 @@ def code_with_after(tree, after, init_code=None):
             '' if tree.module is None else tree.module,
             tuple(alias.name for alias in tree.names),
             tree.level)
-    elif type(tree) is ast.In:
-        return ' in '
     elif type(tree) is ast.Index:
         return '%s' % code(tree.value)
     elif type(tree) is ast.Interactive:
         return init_code % many_to_one(child_nodes(tree))
-    elif type(tree) is ast.Is:
-        return ' is '
-    elif type(tree) is ast.IsNot:
-        return ' is not '
     elif type(tree) is ast.keyword:
         return '%s=%s' % (tree.arg, code(tree.value))
     elif type(tree) is ast.Lambda:
@@ -378,18 +379,10 @@ def code_with_after(tree, after, init_code=None):
     elif type(tree) is ast.ListComp:
         return '[%s]' % (' '.join([code(tree.elt)] + [code(gen)
             for gen in tree.generators]))
-    elif type(tree) is ast.Lt:
-        return '<'
-    elif type(tree) is ast.LtE:
-        return '<='
     elif type(tree) is ast.Module:
         return init_code % many_to_one(child_nodes(tree))
     elif type(tree) is ast.Name:
         return '__d.' + tree.id
-    elif type(tree) is ast.NotEq:
-        return '!='
-    elif type(tree) is ast.NotIn:
-        return ' not in '
     elif type(tree) is ast.Num:
         return repr(tree.n)
     elif type(tree) is ast.Pass:
