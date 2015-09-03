@@ -370,7 +370,8 @@ def code_with_after(tree, after):
     elif type(tree) is ast.Return:
         return code(tree.value)
     elif type(tree) is ast.Set:
-        return 'set(%s)' % tree.elts
+        assert tree.elts, '{} is a dict'
+        return '{%s}' % ', '.join(code(elt) for elt in tree.elts)
     elif type(tree) is ast.SetComp:
         return '{%s}' % (' '.join([code(tree.elt)] + [code(gen) for gen in tree.generators]))
     elif type(tree) is ast.Slice:
