@@ -110,7 +110,7 @@ def slice_repr(slice):
     elif type(slice) is ast.Index:
         return code(slice.value)
     else:
-        raise NotImplementedError('Case not caught: %s' % str(type(target)))
+        raise NotImplementedError('Case not caught: %s' % str(type(slice)))
 
 def delete_code(target):
     if type(target) is ast.Attribute:
