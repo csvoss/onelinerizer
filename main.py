@@ -110,6 +110,13 @@ operator_code = {
     ast.FloorDiv: '//',
 }
 
+unaryop_code = {
+    ast.Invert: '~',
+    ast.Not: 'not ',
+    ast.UAdd: '+',
+    ast.USub: '-',
+}
+
 def many_to_one(trees, after='None'):
     # trees :: [Tree]
     # return :: string
@@ -353,8 +360,6 @@ def code_with_after(tree, after, init_code=None):
         return '%s' % code(tree.value)
     elif type(tree) is ast.Interactive:
         return init_code % many_to_one(child_nodes(tree))
-    elif type(tree) is ast.Invert:
-        return '~'
     elif type(tree) is ast.Is:
         return ' is '
     elif type(tree) is ast.IsNot:
@@ -381,8 +386,6 @@ def code_with_after(tree, after, init_code=None):
         return init_code % many_to_one(child_nodes(tree))
     elif type(tree) is ast.Name:
         return '__d.' + tree.id
-    elif type(tree) is ast.Not:
-        return 'not '
     elif type(tree) is ast.NotEq:
         return '!='
     elif type(tree) is ast.NotIn:
@@ -439,12 +442,8 @@ def code_with_after(tree, after, init_code=None):
             return '(%s,)' % elts[0]
         else:
             return '(%s)' % (','.join(elts))
-    elif type(tree) is ast.UAdd:
-        return '+'
-    elif type(tree) is ast.USub:
-        return '-'
     elif type(tree) is ast.UnaryOp:
-        return '(%s%s)' % (code(tree.op), code(tree.operand))
+        return '(%s%s)' % (unaryop_code[type(tree.op)], code(tree.operand))
     elif type(tree) is ast.While:
         test = code(tree.test)
         body = many_to_one(tree.body, after='__this(__d)')
