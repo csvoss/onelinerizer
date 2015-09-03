@@ -342,7 +342,7 @@ def code_with_after(tree, after):
     elif type(tree) is ast.NotIn:
         return ' not in '
     elif type(tree) is ast.Num:
-        return str(tree.n)
+        return repr(tree.n)
     elif type(tree) is ast.Or:
         return ' or '
     elif type(tree) is ast.Pass:
