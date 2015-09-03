@@ -90,6 +90,11 @@ def child_nodes(tree):
     return list(ast.iter_child_nodes(tree))
 
 
+boolop_code = {
+    ast.And: ' and ',
+    ast.Or: ' or ',
+}
+
 def many_to_one(trees, after='None'):
     # trees :: [Tree]
     # return :: string
@@ -153,8 +158,6 @@ def delete_code(target):
 def code_with_after(tree, after, init_code=None):
     if type(tree) is ast.Add:
         return '+'
-    elif type(tree) is ast.And:
-        return ' and '
     elif type(tree) is ast.Assert:
         return '(%s if %s else ([] for [] in []).throw(AssertionError%s))' % (
             after, code(tree.test),
@@ -190,7 +193,7 @@ def code_with_after(tree, after, init_code=None):
     elif type(tree) is ast.BitXor:
         return '^'
     elif type(tree) is ast.BoolOp:
-        return '(%s)' % code(tree.op).join([code(val) for val in tree.values])
+        return '(%s)' % boolop_code[type(tree.op)].join([code(val) for val in tree.values])
     elif type(tree) is ast.Break:
         return '__break(__d)'
     elif type(tree) is ast.Call:
@@ -389,8 +392,6 @@ def code_with_after(tree, after, init_code=None):
         return ' not in '
     elif type(tree) is ast.Num:
         return repr(tree.n)
-    elif type(tree) is ast.Or:
-        return ' or '
     elif type(tree) is ast.Pass:
         return after
     elif type(tree) is ast.Pow:
