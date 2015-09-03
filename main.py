@@ -278,9 +278,10 @@ def code_with_after(tree, after, init_code=None):
         # ('lambda x, y, z=5, *args:', ['x','y','z','args'])
         args, arg_names = code(tree.args)
         body = many_to_one(tree.body)
-        body = assignment_component(body,
-            ','.join('__d.' + name for name in arg_names) or '[]',
-            ','.join(arg_names))
+        if arg_names:
+            body = assignment_component(body,
+                ','.join('__d.' + name for name in arg_names),
+                ','.join(arg_names))
         function_code = args + body
         for decorator in reversed(tree.decorator_list):
             function_code = "%s(%s)" % (code(decorator), function_code)
@@ -361,8 +362,9 @@ def code_with_after(tree, after, init_code=None):
     elif type(tree) is ast.Lambda:
         args, arg_names = code(tree.args)
         body = code(tree.body)
-        body = assignment_component(body, ','.join('__d.' + name
-            for name in arg_names) or '[]', ','.join(arg_names))
+        if arg_names:
+            body = assignment_component(body, ','.join('__d.' + name
+                for name in arg_names), ','.join(arg_names))
         return '(' + args + body + ')'
     elif type(tree) is ast.List:
         elts = [code(elt) for elt in tree.elts]
