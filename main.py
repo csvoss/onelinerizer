@@ -1,3 +1,4 @@
+import argparse
 import ast
 import sys
 
@@ -452,46 +453,69 @@ def to_one_line(original):
 
 
 
-
-
 DEBUG = True ## TODO: Use command line arg instead
 
-
-
 if __name__ == '__main__':
-    if len(sys.argv) <= 1:
-        print "Usage: python main.py inputfilename [outputfilename]"
-    else:
-        infilename = sys.argv[1]
-
-        if len(sys.argv) >= 3:
-            outfilename = sys.argv[2]
-        else:
-            if ".py" in infilename:
-                outfilename = ".ol.py".join(infilename.rsplit(".py", 1))
+    usage = ['python main.py --help',
+            'python main.py infile.py outfile.py',
+            'cat infile > python main.py outfile.py',
+            'cat infile > python main.py > outfile.py'
+            ]
+    parser = argparse.ArgumentParser(usage = '\n       '.join(usage), description="if infile is given and outfile is not, outfile will be infile.ol.py")
+    parser.add_argument('file_one', nargs='?')
+    parser.add_argument('file_two', nargs='?')
+    parser.add_argument('--debug', action='store_true')
+    args = parser.parse_args()
+    original = None
+    if args.file_one is None:
+        # I have gotten no arguments. Look at sys.stdin
+        if sys.stdin.isatty():
+            sys.exit('No input. see python main.py --help')
+        original = sys.stdin.read()
+        outfilename = None
+    elif args.file_two is None:
+        # I have gotten one argument. If there's something to read from sys.stdin, read from there.
+        if sys.stdin.isatty(): # nothing at sys.stdin
+            if 'py' in args.file_one:
+                outfilename = '.ol.py'.join(args.file_one.rsplit(".py", 1))
             else:
-                outfilename = infilename + ".ol.py"
-            print "Writing to %s" % outfilename
+                outfilename = args.file_one + '.ol.py'
+        else: # I see something at sys.stdin
+            original = sys.stdin.read()
+            outfilename = args.file_one
+    else:
+        if not sys.stdin.isatty():
+            sys.exit('why did you give me something on sys.stdin?')
+        outfilename = args.file_two
 
-        infi = open(infilename, 'r')
+    if original is None:
+        infile = open(args.file_one)
+        original= infile.read().strip()
+        infile.close()
+    onelined = to_one_line(original)
+    if outfilename is None:
+        print onelined
+    else:
         outfi = open(outfilename, 'w')
+        outfi.write(onelined + '\n')
+        outfi.close()
 
-        original = infi.read().strip()
-        onelined = to_one_line(original)
-        outfi.write(onelined+"\n")
-
-        if DEBUG:
-            print '--- ORIGINAL ---------------------------------'
-            print original
-            print '----------------------------------------------'
-            try:
-                exec(original)
-            except Exception as e:
-                print e
-            print '--- ONELINED ---------------------------------'
-            print onelined
-            print '----------------------------------------------'
-            try:
-                exec(onelined)
-            except Exception as e:
-                print e
+    if args.debug:
+        if outfilename is None: #redirect to sys.stderr if I'm writing outfile to sys.stdout
+            o = sys.stderr
+        else:
+            o = sys.stdout
+        o.write('--- ORIGINAL ---------------------------------' + '\n')
+        o.write(original + '\n')
+        o.write('----------------------------------------------' + '\n')
+        try:
+            exec(original)
+        except Exception as e:
+            o.write(e + '\n')
+        o.write('--- ONELINED ---------------------------------' + '\n')
+        o.write(onelined + '\n')
+        o.write('----------------------------------------------' + '\n')
+        try:
+            exec(onelined)
+        except Exception as e:
+            o.write(e + '\n')
