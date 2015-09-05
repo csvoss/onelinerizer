@@ -88,8 +88,8 @@ def many_to_one(trees, after='None'):
     else:
         return code_with_after(trees[0], many_to_one(trees[1:], after=after))
 
-def code(tree):
-    return code_with_after(tree, 'None')
+def code(tree, init_code=None):
+    return code_with_after(tree, 'None', init_code)
 
 
 def assignment_component(after, targets, value):
@@ -132,7 +132,7 @@ def delete_code(target):
     else:
         raise NotImplementedError('Case not caught: %s' % str(type(target)))
 
-def code_with_after(tree, after):
+def code_with_after(tree, after, init_code=None):
     if type(tree) is ast.Add:
         return '+'
     elif type(tree) is ast.And:
@@ -300,7 +300,7 @@ def code_with_after(tree, after):
     elif type(tree) is ast.Index:
         return '%s' % code(tree.value)
     elif type(tree) is ast.Interactive:
-        return INIT_CODE % many_to_one(child_nodes(tree))
+        return init_code % many_to_one(child_nodes(tree))
     elif type(tree) is ast.Invert:
         return '~'
     elif type(tree) is ast.Is:
@@ -329,7 +329,7 @@ def code_with_after(tree, after):
         return '%'
     elif type(tree) is ast.Module:
         ## Todo: look into sys.stdout instead
-        return INIT_CODE % many_to_one(child_nodes(tree))
+        return init_code % many_to_one(child_nodes(tree))
     elif type(tree) is ast.Mult:
         return '*'
     elif type(tree) is ast.Name:
@@ -385,7 +385,7 @@ def code_with_after(tree, after):
     elif type(tree) is ast.Subscript:
         return '%s[%s]' % (code(tree.value), code(tree.slice))
     elif type(tree) is ast.Suite:
-        return INIT_CODE % many_to_one(child_nodes(tree))
+        return init_code % many_to_one(child_nodes(tree))
     elif type(tree) is ast.TryExcept:
         raise NotImplementedError('Open problem: try-except')
     elif type(tree) is ast.TryFinally:
@@ -426,8 +426,6 @@ def code_with_after(tree, after):
 def to_one_line(original):
     ## original :: string
     ## :: string
-    global INIT_CODE
-
     t = ast.parse(original)
 
     original = original.strip()
@@ -439,9 +437,9 @@ def to_one_line(original):
        type(t.body[0]) in (ast.Delete, ast.Assign, ast.AugAssign, ast.Print, ast.Raise, ast.Assert, ast.Import, ast.ImportFrom, ast.Exec, ast.Global, ast.Expr, ast.Pass):
         return original
 
-    INIT_CODE = get_init_code(t)
+    init_code = get_init_code(t)
 
-    return code(t)
+    return code(t, init_code)
 
 
 # def has_single_print(tree):
