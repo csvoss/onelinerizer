@@ -15,7 +15,8 @@ Installation and Usage
 ```sh
 $ git clone https://github.com/csvoss/oneliner
 $ cd oneliner
-$ python main.py name_of_target_file.py
+$ python main.py target_file.py --debug
+$ python target_file.ol.py
 ```
 
 Examples
