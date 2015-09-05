@@ -502,20 +502,20 @@ if __name__ == '__main__':
 
     if args.debug:
         if outfilename is None: #redirect to sys.stderr if I'm writing outfile to sys.stdout
-            o = sys.stderr
-        else:
-            o = sys.stdout
-        o.write('--- ORIGINAL ---------------------------------' + '\n')
-        o.write(original + '\n')
-        o.write('----------------------------------------------' + '\n')
+            sys.stdout = sys.stderr
+        print '--- ORIGINAL ---------------------------------'
+        print original
+        print '----------------------------------------------'
+        scope= {}
         try:
-            exec(original)
+            exec(original, scope)
         except Exception as e:
-            o.write(e + '\n')
-        o.write('--- ONELINED ---------------------------------' + '\n')
-        o.write(onelined + '\n')
-        o.write('----------------------------------------------' + '\n')
+            print e
+        print '--- ONELINED ---------------------------------'
+        print onelined
+        print '----------------------------------------------'
+        scope = {}
         try:
-            exec(onelined)
+            exec(onelined, scope)
         except Exception as e:
-            o.write(e + '\n')
+            print e
