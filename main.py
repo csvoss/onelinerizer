@@ -181,7 +181,7 @@ def code_with_after(tree, after):
     elif type(tree) is ast.BoolOp:
         return T('({})').format(T(boolop_code[type(tree.op)]).join(map(code, tree.values)))
     elif type(tree) is ast.Break:
-        return T('__break()')
+        return T('{__break}()')
     elif type(tree) is ast.Call:
         func = code(tree.func)
         args = [code(arg) for arg in tree.args]
@@ -211,7 +211,7 @@ def code_with_after(tree, after):
         return (T('for {} in {}').format(code(tree.target), code(tree.iter)) +
                 T('').join(' if ' + code(i) for i in tree.ifs))
     elif type(tree) is ast.Continue:
-        return T('__continue()')
+        return T('{__continue}()')
     elif type(tree) is ast.Delete:
         cs = [c for target in tree.targets for c in delete_code(target)]
         if cs:
@@ -253,9 +253,9 @@ def code_with_after(tree, after):
             T('{__y}(lambda __this: lambda: {})()').format(
                 lambda_function({'__i': 'next(__items, __sentinel)'}).format(
                     T('{} if __i is not __sentinel else {}').format(
-                        lambda_function({'__break': '__after',
-                                         '__continue': '__this'}).format(
-                            assignment_component(body, item, '__i')),
+                        provide(
+                            assignment_component(body, item, '__i'),
+                            __break='__after', __continue='__this'),
                         orelse))))
     elif type(tree) is ast.FunctionDef:
         # code() returns something of the form
@@ -409,8 +409,8 @@ def code_with_after(tree, after):
         orelse = many_to_one(tree.orelse, after='__after()')
         return lambda_function({'__after': T('lambda: {}').format(after)}).format(
             T('{__y}(lambda __this: lambda: {} if {} else {})()').format(
-                lambda_function({'__break': '__after', '__continue': '__this'}).format(
-                    body), test, orelse))
+                provide(body, __break='__after', __continue='__this'),
+                test, orelse))
     elif type(tree) is ast.With:
         raise NotImplementedError('Open problem: with')
     elif type(tree) is ast.Yield:
