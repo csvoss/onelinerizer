@@ -501,8 +501,9 @@ if __name__ == '__main__':
         outfi.close()
 
     if args.debug:
-        if outfilename is None: #redirect to sys.stderr if I'm writing outfile to sys.stdout
-            sys.stdout = sys.stderr
+        if outfilename is None: #break through pipes
+            sys.stdout = open('CON:', 'w') if sys.platform in ('cygwin', 'win32') else open('/dev/tty', 'w')
+        sys.stdin = open('CON:') if sys.platform in ('cygwin', 'win32') else open('/dev/tty')
         print '--- ORIGINAL ---------------------------------'
         print original
         print '----------------------------------------------'
