@@ -4,22 +4,6 @@ import sys
 from template import T
 
 
-# TODO: Detect which features are ACTUALLY needed, and modify the code
-# accordingly.
-
-# Need __d and the list comprehension trick if we do anything involving __d --
-# while, for, if
-# Need __print if we print
-# Need __y if we use while
-# Need __builtin__ if we use __print OR if we use __d
-
-# Abstractions for naming of variables.
-DUNDER_PRINT = "__print"
-DUNDER_EXEC = "__exec"
-DUNDER_Y = "__y"
-DUNDER_D = "__d"
-
-
 def lambda_function(arguments_to_values, prettyprinted=False):
     # arguments_to_values :: {argument_i: value_i}
     # :: string
@@ -31,48 +15,38 @@ def lambda_function(arguments_to_values, prettyprinted=False):
             T('{}'),
             T(', ').join(arguments_to_values.values()))
 
+def provide(body, **subs):
+    body = T('{}').format(body)
+    needed = set(body.free()).intersection(subs)
+    if needed:
+        return lambda_function({k: subs[k] for k in needed}).format(
+            body.format(**{k: k for k in needed}))
+    else:
+        return body
 
-def get_init_code(tree):
-    # Calculate the helper variables that we will need, and return a string
-    # which defines those variables and leaves a {} where the rest of the code
-    # will need to continue.
+
+def get_init_code(output):
+    # Calculate the helper variables that we will need, wrap the output
+    # code in a definition of those variables.
 
     # TODO: Short-circuit to something far simpler if the program has but one
     # print statement.
 
-    # TODO: Calculate these booleans.
-    need_print = True  # true if prints anywhere.
-    need_exec = True  # true if execs anywhere.
-    need_y_combinator = True  # true if uses a while.
-    need_state_dict = True  # true if uses anything involving __d - while, for,
-                            # if. Also governs the list comprehension trick.
-    need_dunderbuiltin = need_print or need_state_dict
-    need_sys = True  # true if anything uses raise with no arguments, del a[:],
-                     # or del a[n:].
+    output = provide(
+        output,
+        __print=T("{__builtin__}.__dict__['print']"),
+        __exec="__import__('trace').Trace(count=False,"
+               " trace=False).runctx",
+        __y="(lambda f: (lambda x: x(x))(lambda y:"
+            " f(lambda: y(y)())))",
+        __d=T("type('StateDict',(),{__builtin__}.__dict__)()"),
+        sys="__import__('sys')")
 
-    output = T('{}')
-    if need_dunderbuiltin:
-        output = output.format(lambda_function({"__builtin__":
-                                                "__import__('__builtin__')"}))
+    output = provide(
+        output,
+        __builtin__="__import__('__builtin__')")
 
-    arguments = {}
-    if need_print:
-        arguments[DUNDER_PRINT] = "__builtin__.__dict__['print']"
-    if need_exec:
-        arguments[DUNDER_EXEC] = ("__import__('trace').Trace(count=False,"
-                                  " trace=False).runctx")
-    if need_y_combinator:
-        arguments[DUNDER_Y] = ("(lambda f: (lambda x: x(x))(lambda y:"
-                               " f(lambda: y(y)())))")
-    if need_state_dict:
-        arguments[DUNDER_D] = "type('StateDict',(),__builtin__.__dict__)()"
-    if need_sys:
-        arguments['sys'] = "__import__('sys')"
-
-    if len(arguments.keys()) > 0:
-        output = output.format(lambda_function(arguments))
-
-    return output
+    return output.close()
 
 
 boolop_code = {
@@ -162,13 +136,13 @@ def delete_code(target):
                       'None' if target.slice.upper is None else '__upper',
                       '0' if target.slice.lower is None
                           else code(target.slice.lower),
-                      'sys.maxint' if target.slice.upper is None
+                      T('{sys}.maxint') if target.slice.upper is None
                           else code(target.slice.upper)))]
         else:
             return [T('{}.__delitem__({})').format(code(target.value),
                                                    slice_repr(target.slice))]
     elif type(target) is ast.Name:
-        return [T('delattr(__d, {!r})').format(target.id)]
+        return [T('delattr({__d}, {!r})').format(target.id)]
     elif type(target) in (ast.List, ast.Tuple):
         return [c for elt in target.elts for c in delete_code(elt)]
     else:
@@ -255,10 +229,10 @@ def code_with_after(tree, after):
     elif type(tree) is ast.ExceptHandler:
         raise NotImplementedError('Open problem: except')
     elif type(tree) is ast.Exec:
-        exec_code = T('__exec({}, {}, {})').format(
+        exec_code = T('{__exec}({}, {}, {})').format(
             code(tree.body),
-            '__d.__dict__' if tree.globals is None else code(tree.globals),
-            '__d.__dict__' if tree.locals is None else code(tree.locals))
+            T('{__d}.__dict__') if tree.globals is None else code(tree.globals),
+            T('{__d}.__dict__') if tree.locals is None else code(tree.locals))
         if after != 'None':
             return T('({}, {})[1]').format(exec_code, after)
         else:
@@ -276,7 +250,7 @@ def code_with_after(tree, after):
         orelse = many_to_one(tree.orelse, after='__after()')
         return lambda_function({'__items': T('iter({})').format(items), '__sentinel':
                                 '[]', '__after': T('lambda: {}').format(after)}).format(
-            T('__y(lambda __this: lambda: {})()').format(
+            T('{__y}(lambda __this: lambda: {})()').format(
                 lambda_function({'__i': 'next(__items, __sentinel)'}).format(
                     T('{} if __i is not __sentinel else {}').format(
                         lambda_function({'__break': '__after',
@@ -290,14 +264,14 @@ def code_with_after(tree, after):
         body = many_to_one(tree.body)
         if arg_names:
             body = assignment_component(body,
-                T(',').join('__d.' + name for name in arg_names),
+                T(',').join(T('{__d}.') + name for name in arg_names),
                 T(',').join(arg_names))
         function_code = args + body
         for decorator in reversed(tree.decorator_list):
             function_code = T('{}({})').format(code(decorator), function_code)
         return assignment_component(
             after,
-            T('{}, {}.__name__').format('__d.' + tree.name, '__d.' + tree.name),
+            T('{}, {}.__name__').format(T('{__d}.') + tree.name, T('{__d}.') + tree.name),
             T('{}, {!r}').format(function_code, tree.name))
     elif type(tree) is ast.arguments:
         # this should return something of the form
@@ -334,19 +308,19 @@ def code_with_after(tree, after):
         for alias in tree.names:
             ids = alias.name.split('.')
             if alias.asname is None:
-                after = assignment_component(after, T('__d.{}').format(ids[0]),
-                    T('__import__({!r}, __d.__dict__, __d.__dict__)').format(alias.name))
+                after = assignment_component(after, T('{__d}.{}').format(ids[0]),
+                    T('__import__({!r}, {__d}.__dict__, {__d}.__dict__)').format(alias.name))
             else:
-                after = assignment_component(after, T('__d.{}').format(alias.asname),
-                    T('.').join([T('__import__({!r}, __d.__dict__, __d.__dict__)').format(
+                after = assignment_component(after, T('{__d}.{}').format(alias.asname),
+                    T('.').join([T('__import__({!r}, {__d}.__dict__, {__d}.__dict__)').format(
                         alias.name)] + ids[1:]))
         return after
     elif type(tree) is ast.ImportFrom:
-        return T('(lambda __mod: {})(__import__({!r}, __d.__dict__, __d.__dict__,'
+        return T('(lambda __mod: {})(__import__({!r}, {__d}.__dict__, {__d}.__dict__,'
                  ' {!r}, {!r}))').format(
             assignment_component(
                 after,
-                T(',').join('__d.' + (alias.name if alias.asname is None
+                T(',').join(T('{__d}.') + (alias.name if alias.asname is None
                                       else alias.asname) for alias in tree.names),
                 T(',').join('__mod.' + alias.name for alias in tree.names)),
             '' if tree.module is None else tree.module,
@@ -360,7 +334,7 @@ def code_with_after(tree, after):
         args, arg_names = code(tree.args)
         body = code(tree.body)
         if arg_names:
-            body = assignment_component(body, T(',').join('__d.' + name
+            body = assignment_component(body, T(',').join(T('{__d}.') + name
                 for name in arg_names), T(',').join(arg_names))
         return '(' + args + body + ')'
     elif type(tree) is ast.List:
@@ -370,7 +344,7 @@ def code_with_after(tree, after):
         return T('[{}]').format(T(' ').join([code(tree.elt)] +
                                             map(code, tree.generators)))
     elif type(tree) is ast.Name:
-        return T('__d.') + tree.id
+        return T('{__d}.') + tree.id
     elif type(tree) is ast.Num:
         return T('{!r}').format(tree.n)
     elif type(tree) is ast.Pass:
@@ -385,12 +359,12 @@ def code_with_after(tree, after):
             # many cases wrong (tests/unimplemented/softspace.py).
             to_print += ", end=' '"
         if after != 'None':
-            return T('(__print({}), {})[1]').format(to_print, after)
+            return T('({__print}({}), {})[1]').format(to_print, after)
         else:
-            return T('__print({})').format(to_print)
+            return T('{__print}({})').format(to_print)
     elif type(tree) is ast.Raise:
         if tree.type is None:
-            return T('([] for [] in []).throw(*sys.exc_info())')
+            return T('([] for [] in []).throw(*{sys}.exc_info())')
         else:
             return T('([] for [] in []).throw({}{}{})').format(
                 code(tree.type),
@@ -434,7 +408,7 @@ def code_with_after(tree, after):
         body = many_to_one(tree.body, after='__this()')
         orelse = many_to_one(tree.orelse, after='__after()')
         return lambda_function({'__after': T('lambda: {}').format(after)}).format(
-            T('__y(lambda __this: lambda: {} if {} else {})()').format(
+            T('{__y}(lambda __this: lambda: {} if {} else {})()').format(
                 lambda_function({'__break': '__after', '__continue': '__this'}).format(
                     body), test, orelse))
     elif type(tree) is ast.With:
@@ -461,7 +435,7 @@ def to_one_line(original):
                            ast.Exec, ast.Global, ast.Expr, ast.Pass):
         return original
 
-    return get_init_code(t).format(many_to_one(t.body)).close()
+    return get_init_code(many_to_one(t.body))
 
 
 # TODO: Use command line arg instead
