@@ -19,7 +19,7 @@ DUNDER_Y = "__y"
 DUNDER_D = "__d"
 
 COMMA = ", "
-CONTINUATION = "%s"
+CONTINUATION = '{}'
 
 
 def lambda_function(arguments_to_values, prettyprinted=False):
@@ -29,17 +29,17 @@ def lambda_function(arguments_to_values, prettyprinted=False):
         raise NotImplementedError
     else:
         return ("(lambda " +
-                COMMA.join(arguments_to_values.keys()).replace("%", "%%") +
+                COMMA.join(arguments_to_values.keys()).replace('{', '{{').replace('}', '}}') +
                 ": " +
                 CONTINUATION +
                 ")(" +
-                COMMA.join(arguments_to_values.values()).replace("%", "%%") +
+                COMMA.join(arguments_to_values.values()).replace('{', '{{').replace('}', '}}') +
                 ")")
 
 
 def get_init_code(tree):
     # Calculate the helper variables that we will need, and return a string
-    # which defines those variables and leaves a %s where the rest of the code
+    # which defines those variables and leaves a {} where the rest of the code
     # will need to continue.
 
     # TODO: Short-circuit to something far simpler if the program has but one
@@ -55,10 +55,10 @@ def get_init_code(tree):
     need_sys = True  # true if anything uses raise with no arguments, del a[:],
                      # or del a[n:].
 
-    output = "%s"
+    output = '{}'
     if need_dunderbuiltin:
-        output = output % lambda_function({"__builtin__":
-                                           "__import__('__builtin__')"})
+        output = output.format(lambda_function({"__builtin__":
+                                                "__import__('__builtin__')"}))
 
     arguments = {}
     if need_print:
@@ -75,7 +75,7 @@ def get_init_code(tree):
         arguments['sys'] = "__import__('sys')"
 
     if len(arguments.keys()) > 0:
-        output = output % lambda_function(arguments)
+        output = output.format(lambda_function(arguments))
 
     return output
 
@@ -160,15 +160,15 @@ def delete_code(target):
         return ['delattr(%s, %r)' % (code(target.value), target.attr)]
     elif type(target) is ast.Subscript:
         if type(target.slice) is ast.Slice and target.slice.step is None:
-            return [lambda_function({'__value': code(target.value)}) %
-                    (("getattr(__value, '__delslice__', lambda __lower, __upper: "
-                      "__value.__delitem__(slice(%s, %s)))(%s, %s)") %
-                     ('None' if target.slice.lower is None else '__lower',
-                      'None' if target.slice.upper is None else '__upper',
-                      '0' if target.slice.lower is None
-                          else code(target.slice.lower),
-                      'sys.maxint' if target.slice.upper is None
-                          else code(target.slice.upper)))]
+            return [lambda_function({'__value': code(target.value)}).format(
+                ("getattr(__value, '__delslice__', lambda __lower, __upper: "
+                 "__value.__delitem__(slice(%s, %s)))(%s, %s)") %
+                ('None' if target.slice.lower is None else '__lower',
+                 'None' if target.slice.upper is None else '__upper',
+                 '0' if target.slice.lower is None
+                     else code(target.slice.lower),
+                 'sys.maxint' if target.slice.upper is None
+                     else code(target.slice.upper)))]
         else:
             return ['%s.__delitem__(%s)' % (code(target.value),
                                             slice_repr(target.slice))]
@@ -280,14 +280,14 @@ def code_with_after(tree, after):
         items = code(tree.iter)
         orelse = many_to_one(tree.orelse, after='__after()')
         return lambda_function({'__items': 'iter(%s)' % items, '__sentinel':
-                                '[]', '__after': 'lambda: %s' % after}) % \
-            ('__y(lambda __this: lambda: %s)()' %
-             (lambda_function({'__i': 'next(__items, __sentinel)'}) %
-              ('%s if __i is not __sentinel else %s' %
-               (lambda_function({'__break': '__after',
-                                 '__continue': '__this'}) %
-                assignment_component(body, '%s' % item, '__i'),
-                orelse))))
+                                '[]', '__after': 'lambda: %s' % after}).format(
+            '__y(lambda __this: lambda: %s)()' %
+            lambda_function({'__i': 'next(__items, __sentinel)'}).format(
+                '%s if __i is not __sentinel else %s' %
+                (lambda_function({'__break': '__after',
+                                  '__continue': '__this'}).format(
+                     assignment_component(body, '%s' % item, '__i')),
+                 orelse)))
     elif type(tree) is ast.FunctionDef:
         # code() returns something of the form
         # ('lambda x, y, z=5, *args:', ['x','y','z','args'])
@@ -437,10 +437,10 @@ def code_with_after(tree, after):
         test = code(tree.test)
         body = many_to_one(tree.body, after='__this()')
         orelse = many_to_one(tree.orelse, after='__after()')
-        return lambda_function({'__after': 'lambda: %s' % after}) % \
-            ('__y(lambda __this: lambda: %s if %s else %s)()' %
-             (lambda_function({'__break': '__after', '__continue': '__this'}) %
-              body, test, orelse))
+        return lambda_function({'__after': 'lambda: %s' % after}).format(
+            '__y(lambda __this: lambda: %s if %s else %s)()' %
+            (lambda_function({'__break': '__after', '__continue': '__this'}).format(
+                body), test, orelse))
     elif type(tree) is ast.With:
         raise NotImplementedError('Open problem: with')
     elif type(tree) is ast.Yield:
@@ -465,7 +465,7 @@ def to_one_line(original):
                            ast.Exec, ast.Global, ast.Expr, ast.Pass):
         return original
 
-    return get_init_code(t) % many_to_one(t.body)
+    return get_init_code(t).format(many_to_one(t.body))
 
 
 # TODO: Use command line arg instead
