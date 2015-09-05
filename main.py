@@ -264,7 +264,7 @@ def code_with_after(tree, after):
         args = ",".join(args)
         return ("lambda %s:" % (args), arg_names)
     elif type(tree) is ast.GeneratorExp:
-        return '%s' % (' '.join([code(tree.elt)] + [code(gen) for gen in tree.generators]))
+        return '(%s)' % (' '.join([code(tree.elt)] + [code(gen) for gen in tree.generators]))
     elif type(tree) is ast.Global:
         raise NotImplementedError('Open problem: global')
     elif type(tree) is ast.Gt:
