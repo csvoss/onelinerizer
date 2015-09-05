@@ -245,9 +245,8 @@ def code_with_after(tree, after):
         body = many_to_one(tree.body)
         body = assignment_component(body, ','.join('__d.' + name for name in arg_names) or '[]', ','.join(arg_names)) ## apply lets for d.arguments
         function_code = args + body
-        if len(tree.decorator_list) > 0:
-            for decorator in tree.decorator_list:
-                function_code = "%s(%s)" % (code(decorator), function_code)
+        for decorator in reversed(tree.decorator_list):
+            function_code = "%s(%s)" % (code(decorator), function_code)
         return assignment_component(after, "__d."+tree.name, function_code)
     elif type(tree) is ast.arguments:
         ## return something of the form ('lambda x, y, z=5, *args:', ['x','y','z','args'])
