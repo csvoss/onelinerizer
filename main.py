@@ -398,6 +398,13 @@ def code_with_after(tree, after, init_code=None):
         return '**'
     elif type(tree) is ast.Print:
         to_print = ','.join([code(x) for x in tree.values])
+        if tree.dest is not None:
+            # Abuse varargs to get the right evaluation order
+            to_print = 'file=%s, *[%s]' % (code(tree.dest), to_print)
+        if not tree.nl:
+            # TODO: This is apparently good enough for 2to3, but gets
+            # many cases wrong (tests/unimplemented/softspace.py).
+            to_print += ", end=' '"
         if after != 'None':
             # TODO: ensure ___ isn't taken
             return '(lambda ___: %s)(__print(%s))' % (after, to_print)
