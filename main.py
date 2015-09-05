@@ -341,7 +341,6 @@ def code_with_after(tree, after, init_code=None):
             '' if tree.module is None else tree.module,
             tuple(alias.name for alias in tree.names),
             tree.level)
-        raise NotImplementedError('Open problem: importfrom')
     elif type(tree) is ast.In:
         return ' in '
     elif type(tree) is ast.Index:
