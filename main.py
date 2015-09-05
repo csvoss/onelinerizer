@@ -365,7 +365,7 @@ def code_with_after(tree, after):
                 '' if tree.inst is None else ', ' + code(tree.inst),
                 '' if tree.tback is None else ', ' + code(tree.tback))
     elif type(tree) is ast.Repr:
-        return 'repr(%s)' % code(tree.value)
+        return '`%s`' % code(tree.value)
     elif type(tree) is ast.Return:
         return code(tree.value)
     elif type(tree) is ast.Set:
