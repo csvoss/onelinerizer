@@ -92,15 +92,10 @@ cmpop_code = {
 def many_to_one(trees, after='None'):
     # trees :: [Tree]
     # return :: string
-    assert type(trees) is list
-    if len(trees) is 0:
-        return T('{}').format(after)
-    else:
-        return code_with_after(trees[0], many_to_one(trees[1:], after=after))
-
-
-def code(tree):
-    return code_with_after(tree, 'None')
+    return reduce(
+        lambda ctx, tree: ctx.format(after=code(tree)),
+        trees,
+        T('{after}')).format(after=after)
 
 
 def assignment_component(after, targets, value):
@@ -149,16 +144,16 @@ def delete_code(target):
         raise NotImplementedError('Case not caught: %s' % str(type(target)))
 
 
-def code_with_after(tree, after):
+def code(tree):
     if type(tree) is ast.Assert:
-        return T('({} if {} else ([] for [] in []).throw(AssertionError{}))').format(
-            after, code(tree.test),
+        return T('({after} if {} else ([] for [] in []).throw(AssertionError{}))').format(
+            code(tree.test),
             '' if tree.msg is None else T('({})').format(code(tree.msg)))
     elif type(tree) is ast.Assign:
         targets = [code(target) for target in tree.targets]
         value = code(tree.value)
         targets = T(',').join(targets)
-        return assignment_component(after, targets,
+        return assignment_component(T('{after}'), targets,
             value if len(tree.targets) == 1
                   else T('[{}]*{}').format(value, len(tree.targets)))
     elif type(tree) is ast.Attribute:
@@ -175,7 +170,7 @@ def code_with_after(tree, after):
                   '__value if __ret is NotImplemented else __ret)(getattr('
                   '__target, {!r}, lambda other: NotImplemented)(__value)))({}, '
                   '{})').format(op, iop, target, value)
-        return assignment_component(after, target, value)
+        return assignment_component(T('{after}'), target, value)
     elif type(tree) is ast.BinOp:
         return T('({}{}{})').format(code(tree.left), operator_code[type(tree.op)], code(tree.right))
     elif type(tree) is ast.BoolOp:
@@ -215,9 +210,9 @@ def code_with_after(tree, after):
     elif type(tree) is ast.Delete:
         cs = [c for target in tree.targets for c in delete_code(target)]
         if cs:
-            return T('({}, {})[-1]').format(T(', ').join(cs), after)
+            return T('({}, {after})[-1]').format(T(', ').join(cs))
         else:
-            return T('{}').format(after)
+            return T('{after}')
     elif type(tree) is ast.Dict:
         return T('{{{}}}').format(T(',').join((T('{}:{}').format(code(k), code(v)))
                                               for (k, v) in zip(tree.keys, tree.values)))
@@ -233,12 +228,9 @@ def code_with_after(tree, after):
             code(tree.body),
             T('{__d}.__dict__') if tree.globals is None else code(tree.globals),
             T('{__d}.__dict__') if tree.locals is None else code(tree.locals))
-        if after != 'None':
-            return T('({}, {})[1]').format(exec_code, after)
-        else:
-            return exec_code
+        return T('({}, {after})[1]').format(exec_code)
     elif type(tree) is ast.Expr:
-        return T('({}, {})[1]').format(code(tree.value), after)
+        return T('({}, {after})[1]').format(code(tree.value))
     elif type(tree) is ast.Expression:
         return code(tree.body)
     elif type(tree) is ast.ExtSlice:
@@ -249,7 +241,7 @@ def code_with_after(tree, after):
         items = code(tree.iter)
         orelse = many_to_one(tree.orelse, after='__after()')
         return lambda_function({'__items': T('iter({})').format(items), '__sentinel':
-                                '[]', '__after': T('lambda: {}').format(after)}).format(
+                                '[]', '__after': T('lambda: {after}')}).format(
             T('{__y}(lambda __this: lambda: {})()').format(
                 lambda_function({'__i': 'next(__items, __sentinel)'}).format(
                     T('{} if __i is not __sentinel else {}').format(
@@ -270,7 +262,7 @@ def code_with_after(tree, after):
         for decorator in reversed(tree.decorator_list):
             function_code = T('{}({})').format(code(decorator), function_code)
         return assignment_component(
-            after,
+            T('{after}'),
             T('{}, {}.__name__').format(T('{__d}.') + tree.name, T('{__d}.') + tree.name),
             T('{}, {!r}').format(function_code, tree.name))
     elif type(tree) is ast.arguments:
@@ -298,13 +290,13 @@ def code_with_after(tree, after):
         test = code(tree.test)
         body = many_to_one(tree.body, after='__after()')
         orelse = many_to_one(tree.orelse, after='__after()')
-        return T('(lambda __after: {} if {} else {})(lambda: {})').format(
-            body, test, orelse, after)
+        return T('(lambda __after: {} if {} else {})(lambda: {after})').format(
+            body, test, orelse)
     elif type(tree) is ast.IfExp:
         return T('({} if {} else {})').format(
             code(tree.body), code(tree.test), code(tree.orelse))
     elif type(tree) is ast.Import:
-        after = T('{}').format(after)
+        after = T('{after}')
         for alias in tree.names:
             ids = alias.name.split('.')
             if alias.asname is None:
@@ -319,7 +311,7 @@ def code_with_after(tree, after):
         return T('(lambda __mod: {})(__import__({!r}, {__d}.__dict__, {__d}.__dict__,'
                  ' {!r}, {!r}))').format(
             assignment_component(
-                after,
+                T('{after}'),
                 T(',').join(T('{__d}.') + (alias.name if alias.asname is None
                                       else alias.asname) for alias in tree.names),
                 T(',').join('__mod.' + alias.name for alias in tree.names)),
@@ -348,7 +340,7 @@ def code_with_after(tree, after):
     elif type(tree) is ast.Num:
         return T('{!r}').format(tree.n)
     elif type(tree) is ast.Pass:
-        return T('{}').format(after)
+        return T('{after}')
     elif type(tree) is ast.Print:
         to_print = T(',').join(code(x) for x in tree.values)
         if tree.dest is not None:
@@ -358,10 +350,7 @@ def code_with_after(tree, after):
             # TODO: This is apparently good enough for 2to3, but gets
             # many cases wrong (tests/unimplemented/softspace.py).
             to_print += ", end=' '"
-        if after != 'None':
-            return T('({__print}({}), {})[1]').format(to_print, after)
-        else:
-            return T('{__print}({})').format(to_print)
+        return T('({__print}({}), {after})[1]').format(to_print)
     elif type(tree) is ast.Raise:
         if tree.type is None:
             return T('([] for [] in []).throw(*{sys}.exc_info())')
@@ -407,7 +396,7 @@ def code_with_after(tree, after):
         test = code(tree.test)
         body = many_to_one(tree.body, after='__this()')
         orelse = many_to_one(tree.orelse, after='__after()')
-        return lambda_function({'__after': T('lambda: {}').format(after)}).format(
+        return lambda_function({'__after': T('lambda: {after}')}).format(
             T('{__y}(lambda __this: lambda: {} if {} else {})()').format(
                 provide(body, __break='__after', __continue='__this'),
                 test, orelse))
