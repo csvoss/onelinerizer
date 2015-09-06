@@ -96,6 +96,12 @@ def assignment_component(after, targets, value):
 
 
 class Namespace(ast.NodeVisitor):
+    def var(self, name):
+        return T('{__d}.{}').format(name)
+
+    def delete_var(self, name):
+        return T('delattr({__d}, {!r})').format(name)
+
     def many_to_one(self, trees, after='None'):
         # trees :: [Tree]
         # return :: string
@@ -137,7 +143,7 @@ class Namespace(ast.NodeVisitor):
                 return [T('{}.__delitem__({})').format(self.visit(target.value),
                                                        self.slice_repr(target.slice))]
         elif type(target) is ast.Name:
-            return [T('delattr({__d}, {!r})').format(target.id)]
+            return [self.delete_var(target.id)]
         elif type(target) in (ast.List, ast.Tuple):
             return [c for elt in target.elts for c in self.delete_code(elt)]
         else:
@@ -276,14 +282,14 @@ class Namespace(ast.NodeVisitor):
         body = self.many_to_one(tree.body)
         if arg_names:
             body = assignment_component(body,
-                T(',').join(T('{__d}.') + name for name in arg_names),
+                T(',').join(self.var(name) for name in arg_names),
                 T(',').join(arg_names))
         function_code = args + body
         for decorator in reversed(tree.decorator_list):
             function_code = T('{}({})').format(self.visit(decorator), function_code)
         return assignment_component(
             T('{after}'),
-            T('{}, {}.__name__').format(T('{__d}.') + tree.name, T('{__d}.') + tree.name),
+            T('{}, {}.__name__').format(self.var(tree.name), self.var(tree.name)),
             T('{}, {!r}').format(function_code, tree.name))
 
     def visit_arguments(self, tree):
@@ -326,10 +332,10 @@ class Namespace(ast.NodeVisitor):
         for alias in tree.names:
             ids = alias.name.split('.')
             if alias.asname is None:
-                after = assignment_component(after, T('{__d}.{}').format(ids[0]),
+                after = assignment_component(after, self.var(ids[0]),
                     T('__import__({!r}, {__d}.__dict__, {__d}.__dict__)').format(alias.name))
             else:
-                after = assignment_component(after, T('{__d}.{}').format(alias.asname),
+                after = assignment_component(after, self.var(alias.asname),
                     T('.').join([T('__import__({!r}, {__d}.__dict__, {__d}.__dict__)').format(
                         alias.name)] + ids[1:]))
         return after
@@ -339,8 +345,8 @@ class Namespace(ast.NodeVisitor):
                  ' {!r}, {!r}))').format(
             assignment_component(
                 T('{after}'),
-                T(',').join(T('{__d}.') + (alias.name if alias.asname is None
-                                      else alias.asname) for alias in tree.names),
+                T(',').join(self.var(alias.name if alias.asname is None
+                                     else alias.asname) for alias in tree.names),
                 T(',').join('__mod.' + alias.name for alias in tree.names)),
             '' if tree.module is None else tree.module,
             tuple(alias.name for alias in tree.names),
@@ -356,7 +362,7 @@ class Namespace(ast.NodeVisitor):
         args, arg_names = self.visit(tree.args)
         body = self.visit(tree.body)
         if arg_names:
-            body = assignment_component(body, T(',').join(T('{__d}.') + name
+            body = assignment_component(body, T(',').join(self.var(name)
                 for name in arg_names), T(',').join(arg_names))
         return '(' + args + body + ')'
 
@@ -369,7 +375,7 @@ class Namespace(ast.NodeVisitor):
                                             map(self.visit, tree.generators)))
 
     def visit_Name(self, tree):
-        return T('{__d}.') + tree.id
+        return self.var(tree.id)
 
     def visit_Num(self, tree):
         return T('{!r}').format(tree.n)
