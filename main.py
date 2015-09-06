@@ -38,8 +38,8 @@ def get_init_code(output):
         __exec="__import__('trace').Trace(count=False,"
                " trace=False).runctx",
         __y="(lambda f: (lambda x: x(x))(lambda y:"
-            " f(lambda: y(y)())))",
-        __d=T("type('StateDict',(),{__builtin__}.__dict__)()"),
+          " f(lambda: y(y)())))",
+        __d=T("{__builtin__}.__dict__.copy()"),
         sys="__import__('sys')")
 
     output = provide(
@@ -97,10 +97,10 @@ def assignment_component(after, targets, value):
 
 class Namespace(ast.NodeVisitor):
     def var(self, name):
-        return T('{__d}.{}').format(name)
+        return T('{__d}[{!r}]').format(name)
 
     def delete_var(self, name):
-        return T('delattr({__d}, {!r})').format(name)
+        return T('{__d}.pop({!r})').format(name)
 
     def many_to_one(self, trees, after='None'):
         # trees :: [Tree]
@@ -247,8 +247,8 @@ class Namespace(ast.NodeVisitor):
     def visit_Exec(self, tree):
         exec_code = T('{__exec}({}, {}, {})').format(
             self.visit(tree.body),
-            T('{__d}.__dict__') if tree.globals is None else self.visit(tree.globals),
-            T('{__d}.__dict__') if tree.locals is None else self.visit(tree.locals))
+            T('{__d}') if tree.globals is None else self.visit(tree.globals),
+            T('{__d}') if tree.locals is None else self.visit(tree.locals))
         return T('({}, {after})[1]').format(exec_code)
 
     def visit_Expr(self, tree):
@@ -333,15 +333,15 @@ class Namespace(ast.NodeVisitor):
             ids = alias.name.split('.')
             if alias.asname is None:
                 after = assignment_component(after, self.var(ids[0]),
-                    T('__import__({!r}, {__d}.__dict__, {__d}.__dict__)').format(alias.name))
+                    T('__import__({!r}, {__d}, {__d})').format(alias.name))
             else:
                 after = assignment_component(after, self.var(alias.asname),
-                    T('.').join([T('__import__({!r}, {__d}.__dict__, {__d}.__dict__)').format(
+                    T('.').join([T('__import__({!r}, {__d}, {__d})').format(
                         alias.name)] + ids[1:]))
         return after
 
     def visit_ImportFrom(self, tree):
-        return T('(lambda __mod: {})(__import__({!r}, {__d}.__dict__, {__d}.__dict__,'
+        return T('(lambda __mod: {})(__import__({!r}, {__d}, {__d},'
                  ' {!r}, {!r}))').format(
             assignment_component(
                 T('{after}'),
