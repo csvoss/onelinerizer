@@ -1,5 +1,6 @@
 import argparse
 import ast
+import symtable
 import sys
 from template import T
 
@@ -96,10 +97,16 @@ def assignment_component(after, targets, value):
 
 
 class Namespace(ast.NodeVisitor):
+    def __init__(self, table):
+        self.table = table
+        self.subtables = iter(table.get_children())
+
     def var(self, name):
+        sym = self.table.lookup(name)
         return T('{__d}[{!r}]').format(name)
 
     def delete_var(self, name):
+        sym = self.table.lookup(name)
         return T('{__d}.pop({!r})').format(name)
 
     def many_to_one(self, trees, after='None'):
@@ -220,6 +227,16 @@ class Namespace(ast.NodeVisitor):
         return (T('for {} in {}').format(self.visit(tree.target), self.visit(tree.iter)) +
                 T('').join(' if ' + self.visit(i) for i in tree.ifs))
 
+    def comprehension_code(self, generators, wrap):
+        iter0 = self.visit(generators[0].iter)
+        ns = Namespace(next(self.subtables))
+        return provide(
+            wrap(ns, T(' ').join(
+                [T('for {} in {__iter}').format(ns.visit(generators[0].target))] +
+                ['if ' + ns.visit(i) for i in generators[0].ifs] +
+                map(ns.visit, generators[1:]))),
+            __iter=iter0)
+
     def visit_Continue(self, tree):
         return T('{__continue}()')
 
@@ -231,12 +248,15 @@ class Namespace(ast.NodeVisitor):
             return T('{after}')
 
     def visit_Dict(self, tree):
-        return T('{{{}}}').format(T(',').join((T('{}:{}').format(self.visit(k), self.visit(v)))
-                                              for (k, v) in zip(tree.keys, tree.values)))
+        return T('{{{}}}').format(T(',').join(
+            T('{}:{}').format(k, v)
+            for k, v in zip(map(self.visit, tree.keys), map(self.visit, tree.values))))
 
     def visit_DictComp(self, tree):
-        return T('{{{}}}').format(T(' ').join([self.visit(tree.key) + ":" + self.visit(tree.value)] +
-                                              map(self.visit, tree.generators)))
+        return self.comprehension_code(
+            tree.generators,
+            lambda ns, g: T('{{{}: {} {}}}').format(
+                T('{}'), ns.visit(tree.value), g).format(ns.visit(tree.key)))
 
     def visit_Ellipsis(self, tree):
         return T('...')
@@ -262,8 +282,8 @@ class Namespace(ast.NodeVisitor):
 
     def visit_For(self, tree):
         item = self.visit(tree.target)
-        body = self.many_to_one(tree.body, after='__this()')
         items = self.visit(tree.iter)
+        body = self.many_to_one(tree.body, after='__this()')
         orelse = self.many_to_one(tree.orelse, after='__after()')
         return lambda_function({'__items': T('iter({})').format(items), '__sentinel':
                                 '[]', '__after': T('lambda: {after}')}).format(
@@ -279,14 +299,16 @@ class Namespace(ast.NodeVisitor):
         # self.visit() returns something of the form
         # ('lambda x, y, z=5, *args:', ['x','y','z','args'])
         args, arg_names = self.visit(tree.args)
-        body = self.many_to_one(tree.body)
+        decoration = T('{}')
+        for decorator in tree.decorator_list:
+            decoration = decoration.format(T('{}({})').format(self.visit(decorator), T('{}')))
+        ns = Namespace(next(self.subtables))
+        body = ns.many_to_one(tree.body)
         if arg_names:
             body = assignment_component(body,
-                T(',').join(self.var(name) for name in arg_names),
+                T(',').join(ns.var(name) for name in arg_names),
                 T(',').join(arg_names))
-        function_code = args + body
-        for decorator in reversed(tree.decorator_list):
-            function_code = T('{}({})').format(self.visit(decorator), function_code)
+        function_code = decoration.format(args + body)
         return assignment_component(
             T('{after}'),
             T('{}, {}.__name__').format(self.var(tree.name), self.var(tree.name)),
@@ -310,8 +332,9 @@ class Namespace(ast.NodeVisitor):
         return (T('lambda {}:').format(args), arg_names)
 
     def visit_GeneratorExp(self, tree):
-        return T('({})').format(T(' ').join([self.visit(tree.elt)] +
-                                            map(self.visit, tree.generators)))
+        return self.comprehension_code(
+            tree.generators,
+            lambda ns, g: T('({} {})').format(ns.visit(tree.elt), g))
 
     def visit_Global(self, tree):
         raise NotImplementedError('Open problem: global')
@@ -324,8 +347,10 @@ class Namespace(ast.NodeVisitor):
             body, test, orelse)
 
     def visit_IfExp(self, tree):
-        return T('({} if {} else {})').format(
-            self.visit(tree.body), self.visit(tree.test), self.visit(tree.orelse))
+        test = self.visit(tree.test)
+        body = self.visit(tree.body)
+        orelse = self.visit(tree.orelse)
+        return T('({} if {} else {})').format(body, test, orelse)
 
     def visit_Import(self, tree):
         after = T('{after}')
@@ -360,9 +385,10 @@ class Namespace(ast.NodeVisitor):
 
     def visit_Lambda(self, tree):
         args, arg_names = self.visit(tree.args)
-        body = self.visit(tree.body)
+        ns = Namespace(next(self.subtables))
+        body = ns.visit(tree.body)
         if arg_names:
-            body = assignment_component(body, T(',').join(self.var(name)
+            body = assignment_component(body, T(',').join(ns.var(name)
                 for name in arg_names), T(',').join(arg_names))
         return '(' + args + body + ')'
 
@@ -384,10 +410,11 @@ class Namespace(ast.NodeVisitor):
         return T('{after}')
 
     def visit_Print(self, tree):
-        to_print = T(',').join(self.visit(x) for x in tree.values)
+        to_print = T('{}')
         if tree.dest is not None:
             # Abuse varargs to get the right evaluation order
             to_print = T('file={}, *[{}]').format(self.visit(tree.dest), to_print)
+        to_print = to_print.format(T(',').join(self.visit(x) for x in tree.values))
         if not tree.nl:
             # TODO: This is apparently good enough for 2to3, but gets
             # many cases wrong (tests/unimplemented/softspace.py).
@@ -414,8 +441,9 @@ class Namespace(ast.NodeVisitor):
         return T('{{{}}}').format(T(', ').join(self.visit(elt) for elt in tree.elts))
 
     def visit_SetComp(self, tree):
-        return T('{{{}}}').format(T(' ').join([self.visit(tree.elt)] +
-                                              map(self.visit, tree.generators)))
+        return self.comprehension_code(
+            tree.generators,
+            lambda ns, g: T('{{{} {}}}').format(ns.visit(tree.elt), g))
 
     def visit_Slice(self, tree):
         return T('{}:{}{}').format(
@@ -471,6 +499,7 @@ def to_one_line(original):
     # original :: string
     # :: string
     t = ast.parse(original)
+    table = symtable.symtable(original, '<string>', 'exec')
 
     original = original.strip()
 
@@ -482,7 +511,7 @@ def to_one_line(original):
                            ast.Exec, ast.Global, ast.Expr, ast.Pass):
         return original
 
-    return get_init_code(Namespace().many_to_one(t.body))
+    return get_init_code(Namespace(table).many_to_one(t.body))
 
 
 # TODO: Use command line arg instead
