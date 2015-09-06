@@ -310,7 +310,10 @@ def code_with_after(tree, after, init_code=None):
         function_code = args + body
         for decorator in reversed(tree.decorator_list):
             function_code = "%s(%s)" % (code(decorator), function_code)
-        return assignment_component(after, "__d." + tree.name, function_code)
+        return assignment_component(
+            after,
+            '%s, %s.__name__' % ('__d.' + tree.name, '__d.' + tree.name),
+            '%s, %r' % (function_code, tree.name))
     elif type(tree) is ast.arguments:
         # this should return something of the form
         # ('lambda x, y, z=5, *args:', ['x','y','z','args'])
