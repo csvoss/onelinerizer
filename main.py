@@ -34,13 +34,13 @@ def get_init_code(output):
     # print statement.
 
     output = provide(
-        output,
+        output.format(__l=T('{__g}')),
         __print=T("{__builtin__}.__dict__['print']"),
         __exec="__import__('trace').Trace(count=False,"
                " trace=False).runctx",
         __y="(lambda f: (lambda x: x(x))(lambda y:"
           " f(lambda: y(y)())))",
-        __d=T("{__builtin__}.__dict__.copy()"),
+        __g=T("{__builtin__}.__dict__.copy()"),
         sys="__import__('sys')")
 
     output = provide(
@@ -103,11 +103,33 @@ class Namespace(ast.NodeVisitor):
 
     def var(self, name):
         sym = self.table.lookup(name)
-        return T('{__d}[{!r}]').format(name)
+        if sym.is_global():
+            return T('{__g}[{!r}]').format(name)
+        elif sym.is_local():
+            return T('{__l}[{!r}]').format(name)
+        elif sym.is_free():
+            return T('{__f}[{!r}]()').format(name)
+        else:
+            raise SyntaxError('confusing symbol {!r}'.format(name))
 
     def delete_var(self, name):
         sym = self.table.lookup(name)
-        return T('{__d}.pop({!r})').format(name)
+        if sym.is_global():
+            return T('{__g}.pop({!r})').format(name)
+        elif sym.is_local():
+            return T('{__l}.pop({!r})').format(name)
+        elif sym.is_free():
+            raise SyntaxError('deleting free variable {!r}'.format(name))
+        else:
+            raise SyntaxError('confusing symbol {!r}'.format(name))
+
+    def close(self, ns, body, **subs):
+        return provide(
+            body,
+            __l='{}',
+            __f=T('{{{}}}').format(T(', ').join(
+                T('{!r}: lambda: {}').format(v, self.var(v)) for v in ns.table.get_frees())),
+            **subs)
 
     def many_to_one(self, trees, after='None'):
         # trees :: [Tree]
@@ -230,7 +252,8 @@ class Namespace(ast.NodeVisitor):
     def comprehension_code(self, generators, wrap):
         iter0 = self.visit(generators[0].iter)
         ns = Namespace(next(self.subtables))
-        return provide(
+        return self.close(
+            ns,
             wrap(ns, T(' ').join(
                 [T('for {} in {__iter}').format(ns.visit(generators[0].target))] +
                 ['if ' + ns.visit(i) for i in generators[0].ifs] +
@@ -265,10 +288,19 @@ class Namespace(ast.NodeVisitor):
         raise NotImplementedError('Open problem: except')
 
     def visit_Exec(self, tree):
-        exec_code = T('{__exec}({}, {}, {})').format(
-            self.visit(tree.body),
-            T('{__d}') if tree.globals is None else self.visit(tree.globals),
-            T('{__d}') if tree.locals is None else self.visit(tree.locals))
+        body = self.visit(tree.body)
+        if tree.globals is None:
+            exec_code = T('{__exec}({}, {__g}, {__l})').format(body)
+        elif tree.locals is None:
+            exec_code = T(
+                '(lambda b, g: {__exec}(b, {__g} if g is None else g, '
+                '{__l} if g is None else g))({}, {})').format(
+                    body, self.visit(tree.globals))
+        else:
+            exec_code = T(
+                '(lambda b, g, l: {__exec}(b, {__g} if g is None else g, '
+                '({__l} if g is None else g) if l is None else l))({}, {}, {})').format(
+                    body, self.visit(tree.globals), self.visit(tree.locals))
         return T('({}, {after})[1]').format(exec_code)
 
     def visit_Expr(self, tree):
@@ -308,6 +340,7 @@ class Namespace(ast.NodeVisitor):
             body = assignment_component(body,
                 T(',').join(ns.var(name) for name in arg_names),
                 T(',').join(arg_names))
+        body = self.close(ns, body)
         function_code = decoration.format(args + body)
         return assignment_component(
             T('{after}'),
@@ -358,15 +391,15 @@ class Namespace(ast.NodeVisitor):
             ids = alias.name.split('.')
             if alias.asname is None:
                 after = assignment_component(after, self.var(ids[0]),
-                    T('__import__({!r}, {__d}, {__d})').format(alias.name))
+                    T('__import__({!r}, {__g}, {__l})').format(alias.name))
             else:
                 after = assignment_component(after, self.var(alias.asname),
-                    T('.').join([T('__import__({!r}, {__d}, {__d})').format(
+                    T('.').join([T('__import__({!r}, {__g}, {__l})').format(
                         alias.name)] + ids[1:]))
         return after
 
     def visit_ImportFrom(self, tree):
-        return T('(lambda __mod: {})(__import__({!r}, {__d}, {__d},'
+        return T('(lambda __mod: {})(__import__({!r}, {__g}, {__l},'
                  ' {!r}, {!r}))').format(
             assignment_component(
                 T('{after}'),
@@ -390,6 +423,7 @@ class Namespace(ast.NodeVisitor):
         if arg_names:
             body = assignment_component(body, T(',').join(ns.var(name)
                 for name in arg_names), T(',').join(arg_names))
+        body = self.close(ns, body)
         return '(' + args + body + ')'
 
     def visit_List(self, tree):
