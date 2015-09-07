@@ -12,7 +12,10 @@ def only_for_parsing():
         lambda: function_body
         return lambda: return_value
 
-    # TODO: class
+    @class_decorator0(lambda: class_decorator_arg0)
+    @class_decorator1(lambda: class_decorator_arg1)
+    class class_def(lambda: class_base0, lambda: class_base1):
+        lambda: class_body
 
     del (lambda: del_value0).attr, \
         (lambda: del_value1)[lambda: del_index], \

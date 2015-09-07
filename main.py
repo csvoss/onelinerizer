@@ -234,10 +234,18 @@ class Namespace(ast.NodeVisitor):
         return T('{}({})').format(func, comma_sep_elems)
 
     def visit_ClassDef(self, tree):
-        raise NotImplementedError('Not yet implemented: classdef')
-        # Note to self: delattr and setattr are useful things
-        # also you're DEFINITELY going to want this:
-        # https://docs.python.org/2/library/functions.html#type
+        bases = T(', ').join(map(self.visit, tree.bases))
+        if len(tree.bases) == 1:
+            bases += ','
+        decoration = T('{}')
+        for decorator in tree.decorator_list:
+            decoration = decoration.format(T('{}({})').format(self.visit(decorator), T('{}')))
+        ns = Namespace(next(self.subtables))
+        body = ns.many_to_one(tree.body, after=T('{__l}'))
+        body = provide(body, __l='{}')
+        class_code = T('type({!r}, ({}), {})').format(tree.name, bases, body)
+        class_code = decoration.format(class_code)
+        return assignment_component(T('{after}'), self.var(tree.name), class_code)
 
     def visit_Compare(self, tree):
         assert len(tree.ops) == len(tree.comparators)
