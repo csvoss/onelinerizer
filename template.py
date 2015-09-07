@@ -15,9 +15,9 @@ class Variable(object):
 
 class PartialFormatter(string.Formatter):
     def parse(self, format_string):
-        for literal_text, field_name, format_spec, conversion in \
-            super(PartialFormatter, self).parse(format_string):
-            yield escape(literal_text), field_name, format_spec, conversion
+        return ((escape(literal_text), field_name, format_spec, conversion)
+                for literal_text, field_name, format_spec, conversion in
+                super(PartialFormatter, self).parse(format_string))
 
     def vformat(self, format_string, args, kwargs):
         return super(PartialFormatter, self).vformat(
