@@ -10,3 +10,6 @@ print getattr(o, 'foo', 'missing')
 a = range(15)
 del (a[4:6], [a[::2], a[4]]), a[0]
 print a
+
+del []
+del [], []

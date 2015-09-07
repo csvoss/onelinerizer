@@ -127,25 +127,25 @@ def slice_repr(slice):
 
 def delete_code(target):
     if type(target) is ast.Attribute:
-        return 'delattr(%s, %r)' % (code(target.value), target.attr)
+        return ['delattr(%s, %r)' % (code(target.value), target.attr)]
     elif type(target) is ast.Subscript:
         if type(target.slice) is ast.Slice and target.slice.step is None:
-            return lambda_function({'__value': code(target.value)}) % \
-                (("getattr(__value, '__delslice__', lambda __lower, __upper: "
-                  "__value.__delitem__(slice(%s, %s)))(%s, %s)") %
-                 ('None' if target.slice.lower is None else '__lower',
-                  'None' if target.slice.upper is None else '__upper',
-                  '0' if target.slice.lower is None
-                      else code(target.slice.lower),
-                  'sys.maxint' if target.slice.upper is None
-                      else code(target.slice.upper)))
+            return [lambda_function({'__value': code(target.value)}) %
+                    (("getattr(__value, '__delslice__', lambda __lower, __upper: "
+                      "__value.__delitem__(slice(%s, %s)))(%s, %s)") %
+                     ('None' if target.slice.lower is None else '__lower',
+                      'None' if target.slice.upper is None else '__upper',
+                      '0' if target.slice.lower is None
+                          else code(target.slice.lower),
+                      'sys.maxint' if target.slice.upper is None
+                          else code(target.slice.upper)))]
         else:
-            return '%s.__delitem__(%s)' % (code(target.value),
-                                           slice_repr(target.slice))
+            return ['%s.__delitem__(%s)' % (code(target.value),
+                                            slice_repr(target.slice))]
     elif type(target) is ast.Name:
-        return 'delattr(__d, %r)' % target.id
+        return ['delattr(__d, %r)' % target.id]
     elif type(target) in (ast.List, ast.Tuple):
-        return ', '.join(map(delete_code, target.elts))
+        return [c for elt in target.elts for c in delete_code(elt)]
     else:
         raise NotImplementedError('Case not caught: %s' % str(type(target)))
 
@@ -224,8 +224,11 @@ def code_with_after(tree, after, init_code=None):
     elif type(tree) is ast.Continue:
         return '__continue(__d)'
     elif type(tree) is ast.Delete:
-        return ('(lambda *___: %s)(%s)' % 
-                (after, ', '.join(map(delete_code, tree.targets))))
+        cs = [c for target in tree.targets for c in delete_code(target)]
+        if cs:
+            return '(%s, %s)[-1]' % (', '.join(cs), after)
+        else:
+            return after
     elif type(tree) is ast.Dict:
         return '{%s}' % ','.join([('%s:%s' % (code(k), code(v)))
                                   for (k, v) in zip(tree.keys, tree.values)])
@@ -246,13 +249,11 @@ def code_with_after(tree, after, init_code=None):
             '__d.__dict__' if tree.globals is None else code(tree.globals),
             '__d.__dict__' if tree.locals is None else code(tree.locals))
         if after != 'None':
-            return '(lambda ___: %s)(%s)' % (after, exec_code)
+            return '(%s, %s)[1]' % (exec_code, after)
         else:
             return exec_code
     elif type(tree) is ast.Expr:
-        code_to_exec = code(tree.value)
-        # TODO: ensure ___ isn't taken
-        return '(lambda ___: %s)(%s)' % (after, code_to_exec)
+        return '(%s, %s)[1]' % (code(tree.value), after)
     elif type(tree) is ast.Expression:
         return code(tree.body)
     elif type(tree) is ast.ExtSlice:
@@ -400,8 +401,7 @@ def code_with_after(tree, after, init_code=None):
     elif type(tree) is ast.Print:
         to_print = ','.join([code(x) for x in tree.values])
         if after != 'None':
-            # TODO: ensure ___ isn't taken
-            return '(lambda ___: %s)(__print(%s))' % (after, to_print)
+            return '(__print(%s), %s)[1]' % (to_print, after)
         else:
             return '__print(%s)' % to_print
     elif type(tree) is ast.RShift:
