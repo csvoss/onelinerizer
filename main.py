@@ -1,25 +1,8 @@
 import argparse
 import ast
+import symtable
 import sys
-
-
-# TODO: Detect which features are ACTUALLY needed, and modify the code
-# accordingly.
-
-# Need __d and the list comprehension trick if we do anything involving __d --
-# while, for, if
-# Need __print if we print
-# Need __y if we use while
-# Need __builtin__ if we use __print OR if we use __d
-
-# Abstractions for naming of variables.
-DUNDER_PRINT = "__print"
-DUNDER_EXEC = "__exec"
-DUNDER_Y = "__y"
-DUNDER_D = "__d"
-
-COMMA = ", "
-CONTINUATION = "%s"
+from template import T
 
 
 def lambda_function(arguments_to_values, prettyprinted=False):
@@ -28,66 +11,43 @@ def lambda_function(arguments_to_values, prettyprinted=False):
     if prettyprinted:
         raise NotImplementedError
     else:
-        return ("(lambda " +
-                COMMA.join(arguments_to_values.keys()).replace("%", "%%") +
-                ": " +
-                CONTINUATION +
-                ")(" +
-                COMMA.join(arguments_to_values.values()).replace("%", "%%") +
-                ")")
+        return T('(lambda {}: {})({})').format(
+            T(', ').join(arguments_to_values.keys()),
+            T('{}'),
+            T(', ').join(arguments_to_values.values()))
+
+def provide(body, **subs):
+    body = T('{}').format(body)
+    needed = set(body.free()).intersection(subs)
+    if needed:
+        return lambda_function({k: subs[k] for k in needed}).format(
+            body.format(**{k: k for k in needed}))
+    else:
+        return body
 
 
-def get_init_code(tree):
-    # Calculate the helper variables that we will need, and return a string
-    # which defines those variables and leaves a %s where the rest of the code
-    # will need to continue.
+def get_init_code(output):
+    # Calculate the helper variables that we will need, wrap the output
+    # code in a definition of those variables.
 
     # TODO: Short-circuit to something far simpler if the program has but one
     # print statement.
 
-    # TODO: Calculate these booleans.
-    need_print = True  # true if prints anywhere.
-    need_exec = True  # true if execs anywhere.
-    need_y_combinator = True  # true if uses a while.
-    need_state_dict = True  # true if uses anything involving __d - while, for,
-                            # if. Also governs the list comprehension trick.
-    need_dunderbuiltin = need_print or need_state_dict
-    need_sys = True  # true if anything uses raise with no arguments, del a[:],
-                     # or del a[n:].
+    output = provide(
+        output.format(__l=T('{__g}')),
+        __print=T("{__builtin__}.__dict__['print']"),
+        __exec="__import__('trace').Trace(count=False,"
+               " trace=False).runctx",
+        __y="(lambda f: (lambda x: x(x))(lambda y:"
+          " f(lambda: y(y)())))",
+        __g=T("{__builtin__}.__dict__.copy()"),
+        sys="__import__('sys')")
 
-    output = "%s"
-    if need_dunderbuiltin:
-        output = output % lambda_function({"__builtin__":
-                                           "__import__('__builtin__')"})
+    output = provide(
+        output,
+        __builtin__="__import__('__builtin__')")
 
-    arguments = {}
-    if need_print:
-        arguments[DUNDER_PRINT] = "__builtin__.__dict__['print']"
-    if need_exec:
-        arguments[DUNDER_EXEC] = ("__import__('trace').Trace(count=False,"
-                                  " trace=False).runctx")
-    if need_y_combinator:
-        arguments[DUNDER_Y] = ("(lambda f: (lambda x: x(x))(lambda y:"
-                               " f(lambda: y(y)())))")
-    if need_state_dict:
-        arguments[DUNDER_D] = "type('StateDict',(),__builtin__.__dict__)()"
-    if need_sys:
-        arguments['sys'] = "__import__('sys')"
-
-    if len(arguments.keys()) > 0:
-        output = output % lambda_function(arguments)
-
-    return output
-
-
-def fields(tree):
-    # Return the fields of an AST node.
-    return dict(list(ast.iter_fields(tree)))
-
-
-def child_nodes(tree):
-    # Return the child nodes of an AST node.
-    return list(ast.iter_child_nodes(tree))
+    return output.close()
 
 
 boolop_code = {
@@ -130,335 +90,482 @@ cmpop_code = {
     ast.NotIn: ' not in ',
 }
 
-def many_to_one(trees, after='None'):
-    # trees :: [Tree]
-    # return :: string
-    assert type(trees) is list
-    if len(trees) is 0:
-        return after
-    else:
-        return code_with_after(trees[0], many_to_one(trees[1:], after=after))
-
-
-def code(tree, init_code=None):
-    return code_with_after(tree, 'None', init_code)
-
 
 def assignment_component(after, targets, value):
-    # return "(lambda %s: %s)(%s)" % (targets, after, value)
-    return '[%s for %s in [(%s)]][0]' % (after, targets, value)
+    # return T('(lambda {}: {})({})').format(targets, after, value)
+    return T('[{} for {} in [({})]][0]').format(after, targets, value)
 
 
-def slice_repr(slice):
-    if type(slice) is ast.Ellipsis:
-        return 'Ellipsis'
-    elif type(slice) is ast.Slice:
-        return 'slice(%s, %s, %s)' % (
-            'None' if slice.lower is None else code(slice.lower),
-            'None' if slice.upper is None else code(slice.upper),
-            'None' if slice.step is None else code(slice.step))
-    elif type(slice) is ast.ExtSlice:
-        return '(%s)' % ' '.join(slice_repr(dim) + ',' for dim in slice.dims)
-    elif type(slice) is ast.Index:
-        return code(slice.value)
-    else:
-        raise NotImplementedError('Case not caught: %s' % str(type(slice)))
+class Namespace(ast.NodeVisitor):
+    def __init__(self, table):
+        self.table = table
+        self.subtables = iter(table.get_children())
 
-
-def delete_code(target):
-    if type(target) is ast.Attribute:
-        return ['delattr(%s, %r)' % (code(target.value), target.attr)]
-    elif type(target) is ast.Subscript:
-        if type(target.slice) is ast.Slice and target.slice.step is None:
-            return [lambda_function({'__value': code(target.value)}) %
-                    (("getattr(__value, '__delslice__', lambda __lower, __upper: "
-                      "__value.__delitem__(slice(%s, %s)))(%s, %s)") %
-                     ('None' if target.slice.lower is None else '__lower',
-                      'None' if target.slice.upper is None else '__upper',
-                      '0' if target.slice.lower is None
-                          else code(target.slice.lower),
-                      'sys.maxint' if target.slice.upper is None
-                          else code(target.slice.upper)))]
+    def var(self, name):
+        sym = self.table.lookup(name)
+        if sym.is_global():
+            return T('{__g}[{!r}]').format(name)
+        elif sym.is_local():
+            return T('{__l}[{!r}]').format(name)
+        elif sym.is_free():
+            return T('{__f}[{!r}]()').format(name)
         else:
-            return ['%s.__delitem__(%s)' % (code(target.value),
-                                            slice_repr(target.slice))]
-    elif type(target) is ast.Name:
-        return ['delattr(__d, %r)' % target.id]
-    elif type(target) in (ast.List, ast.Tuple):
-        return [c for elt in target.elts for c in delete_code(elt)]
-    else:
-        raise NotImplementedError('Case not caught: %s' % str(type(target)))
+            raise SyntaxError('confusing symbol {!r}'.format(name))
 
+    def delete_var(self, name):
+        sym = self.table.lookup(name)
+        if sym.is_global():
+            return T('{__g}.pop({!r})').format(name)
+        elif sym.is_local():
+            return T('{__l}.pop({!r})').format(name)
+        elif sym.is_free():
+            raise SyntaxError('deleting free variable {!r}'.format(name))
+        else:
+            raise SyntaxError('confusing symbol {!r}'.format(name))
 
-def code_with_after(tree, after, init_code=None):
-    if type(tree) is ast.Assert:
-        return '(%s if %s else ([] for [] in []).throw(AssertionError%s))' % (
-            after, code(tree.test),
-            '' if tree.msg is None else '(%s)' % code(tree.msg))
-    elif type(tree) is ast.Assign:
-        targets = [code(target) for target in tree.targets]
-        value = code(tree.value)
-        targets = ','.join(targets)
-        return assignment_component(after, targets,
+    def close(self, ns, body, **subs):
+        return provide(
+            body,
+            __l='{}',
+            __f=T('{{{}}}').format(T(', ').join(
+                T('{!r}: lambda: {}').format(v, self.var(v)) for v in ns.table.get_frees())),
+            **subs)
+
+    def many_to_one(self, trees, after='None'):
+        # trees :: [Tree]
+        # return :: string
+        return reduce(
+            lambda ctx, tree: ctx.format(after=self.visit(tree)),
+            trees,
+            T('{after}')).format(after=after)
+
+    def slice_repr(self, slice):
+        if type(slice) is ast.Ellipsis:
+            return T('Ellipsis')
+        elif type(slice) is ast.Slice:
+            return T('slice({}, {}, {})').format(
+                'None' if slice.lower is None else self.visit(slice.lower),
+                'None' if slice.upper is None else self.visit(slice.upper),
+                'None' if slice.step is None else self.visit(slice.step))
+        elif type(slice) is ast.ExtSlice:
+            return T('({})').format(T(' ').join(self.slice_repr(dim) + ',' for dim in slice.dims))
+        elif type(slice) is ast.Index:
+            return self.visit(slice.value)
+        else:
+            raise NotImplementedError('Case not caught: %s' % str(type(slice)))
+
+    def delete_code(self, target):
+        if type(target) is ast.Attribute:
+            return [T('delattr({}, {!r})').format(self.visit(target.value), target.attr)]
+        elif type(target) is ast.Subscript:
+            if type(target.slice) is ast.Slice and target.slice.step is None:
+                return [lambda_function({'__value': self.visit(target.value)}).format(
+                    T("getattr(__value, '__delslice__', lambda __lower, __upper: "
+                      "__value.__delitem__(slice({}, {})))({}, {})").format(
+                          'None' if target.slice.lower is None else '__lower',
+                          'None' if target.slice.upper is None else '__upper',
+                          '0' if target.slice.lower is None
+                              else self.visit(target.slice.lower),
+                          T('{sys}.maxint') if target.slice.upper is None
+                              else self.visit(target.slice.upper)))]
+            else:
+                return [T('{}.__delitem__({})').format(self.visit(target.value),
+                                                       self.slice_repr(target.slice))]
+        elif type(target) is ast.Name:
+            return [self.delete_var(target.id)]
+        elif type(target) in (ast.List, ast.Tuple):
+            return [c for elt in target.elts for c in self.delete_code(elt)]
+        else:
+            raise NotImplementedError('Case not caught: %s' % str(type(target)))
+
+    def visit_Assert(self, tree):
+        return T('({after} if {} else ([] for [] in []).throw(AssertionError{}))').format(
+            self.visit(tree.test),
+            '' if tree.msg is None else T('({})').format(self.visit(tree.msg)))
+
+    def visit_Assign(self, tree):
+        targets = [self.visit(target) for target in tree.targets]
+        value = self.visit(tree.value)
+        targets = T(',').join(targets)
+        return assignment_component(T('{after}'), targets,
             value if len(tree.targets) == 1
-                  else '[%s]*%d' % (value, len(tree.targets)))
-    elif type(tree) is ast.Attribute:
-        return '%s.%s' % (code(tree.value), tree.attr)
-    elif type(tree) is ast.AugAssign:
-        target = code(tree.target)
+                  else T('[{}]*{}').format(value, len(tree.targets)))
+
+    def visit_Attribute(self, tree):
+        return T('{}.{}').format(self.visit(tree.value), tree.attr)
+
+    def visit_AugAssign(self, tree):
+        if type(tree.target) is ast.Attribute:
+            target_params = ['__target']
+            target_args = [self.visit(tree.target.value)]
+            target_value = T('__target.{}').format(tree.target.attr)
+            old = T('{__old}')
+        elif type(tree.target) is ast.Subscript:
+            if type(tree.target.slice) is ast.Slice and tree.target.slice.step is None:
+                target_params = ['__target']
+                target_args = [self.visit(tree.target.value)]
+                if tree.target.slice.lower is not None:
+                    target_params.append('__lower')
+                    target_args.append(self.visit(tree.target.slice.lower))
+                if tree.target.slice.upper is not None:
+                    target_params.append('__upper')
+                    target_args.append(self.visit(tree.target.slice.upper))
+                target_value = T('__target[{}:{}]').format(
+                    '' if tree.target.slice.lower is None else '__lower',
+                    '' if tree.target.slice.upper is None else '__upper')
+            else:
+                target_params = ['__target', '__slice']
+                target_args = [self.visit(tree.target.value), self.slice_repr(tree.target.slice)]
+                target_value = '__target[__slice]'
+            old = T('{__old}')
+        elif type(tree.target) is ast.Name:
+            target_params = []
+            target_args = []
+            old = target_value = self.var(tree.target.id)
+        else:
+            raise SyntaxError('illegal expression for augmented assignment')
+
         op = operator_code[type(tree.op)]
         iop = type(tree.op).__name__.lower()
         if iop.startswith('bit'):
             iop = iop[len('bit'):]
         iop = '__i%s__' % iop
-        value = code(tree.value)
-        value = ('(lambda __target, __value: (lambda __ret: __target %s '
-                 '__value if __ret is NotImplemented else __ret)(getattr('
-                 '__target, %r, lambda other: NotImplemented)(__value)))(%s, '
-                 '%s)') % (op, iop, target, value)
-        return assignment_component(after, target, value)
-    elif type(tree) is ast.BinOp:
-        return '(%s%s%s)' % (code(tree.left), operator_code[type(tree.op)], code(tree.right))
-    elif type(tree) is ast.BoolOp:
-        return '(%s)' % boolop_code[type(tree.op)].join([code(val) for val in tree.values])
-    elif type(tree) is ast.Break:
-        return '__break()'
-    elif type(tree) is ast.Call:
-        func = code(tree.func)
-        args = [code(arg) for arg in tree.args]
-        keywords = [code(kw) for kw in tree.keywords]
+        value = self.visit(tree.value)
+        return T('(lambda {}: {})({})').format(
+            T(', ').join(target_params + ['__value']),
+            assignment_component(T('{after}'), target_value, provide(
+                T('(lambda __ret: {} {} '
+                  '__value if __ret is NotImplemented else __ret)(getattr('
+                  '{}, {!r}, lambda other: NotImplemented)(__value))').format(
+                      old, op, old, iop),
+                __old=target_value)),
+            T(', ').join(target_args + [value]))
+
+    def visit_BinOp(self, tree):
+        return T('({}{}{})').format(self.visit(tree.left), operator_code[type(tree.op)], self.visit(tree.right))
+
+    def visit_BoolOp(self, tree):
+        return T('({})').format(T(boolop_code[type(tree.op)]).join(map(self.visit, tree.values)))
+
+    def visit_Break(self, tree):
+        return T('{__break}()')
+
+    def visit_Call(self, tree):
+        func = self.visit(tree.func)
+        args = [self.visit(arg) for arg in tree.args]
+        keywords = [self.visit(kw) for kw in tree.keywords]
         if tree.starargs is None:
             starargs = []
         else:
-            starargs = ["*" + code(tree.starargs)]
+            starargs = ["*" + self.visit(tree.starargs)]
         if tree.kwargs is None:
             kwargs = []
         else:
-            kwargs = ["**" + code(tree.kwargs)]
+            kwargs = ["**" + self.visit(tree.kwargs)]
         elems = args + keywords + starargs + kwargs
-        comma_sep_elems = ','.join(elems)
-        return '%s(%s)' % (func, comma_sep_elems)
-    elif type(tree) is ast.ClassDef:
-        raise NotImplementedError('Not yet implemented: classdef')
-        # Note to self: delattr and setattr are useful things
-        # also you're DEFINITELY going to want this:
-        # https://docs.python.org/2/library/functions.html#type
-    elif type(tree) is ast.Compare:
+        comma_sep_elems = T(',').join(elems)
+        return T('{}({})').format(func, comma_sep_elems)
+
+    def visit_ClassDef(self, tree):
+        bases = T(', ').join(map(self.visit, tree.bases))
+        if len(tree.bases) == 1:
+            bases += ','
+        decoration = T('{}')
+        for decorator in tree.decorator_list:
+            decoration = decoration.format(T('{}({})').format(self.visit(decorator), T('{}')))
+        ns = Namespace(next(self.subtables))
+        body = ns.many_to_one(tree.body, after=T('{__l}'))
+        body = provide(body, __l='{}')
+        class_code = T('type({!r}, ({}), {})').format(tree.name, bases, body)
+        class_code = decoration.format(class_code)
+        return assignment_component(T('{after}'), self.var(tree.name), class_code)
+
+    def visit_Compare(self, tree):
         assert len(tree.ops) == len(tree.comparators)
-        return code(tree.left) + ''.join(
-            [cmpop_code[type(tree.ops[i])] + code(tree.comparators[i])
+        return self.visit(tree.left) + T('').join(
+            [cmpop_code[type(tree.ops[i])] + self.visit(tree.comparators[i])
              for i in range(len(tree.ops))])
-    elif type(tree) is ast.comprehension:
-        return (('for %s in %s' % (code(tree.target), code(tree.iter))) +
-                ''.join([' if ' + code(i) for i in tree.ifs]))
-    elif type(tree) is ast.Continue:
-        return '__continue()'
-    elif type(tree) is ast.Delete:
-        cs = [c for target in tree.targets for c in delete_code(target)]
+
+    def visit_comprehension(self, tree):
+        return (T('for {} in {}').format(self.visit(tree.target), self.visit(tree.iter)) +
+                T('').join(' if ' + self.visit(i) for i in tree.ifs))
+
+    def comprehension_code(self, generators, wrap):
+        iter0 = self.visit(generators[0].iter)
+        ns = Namespace(next(self.subtables))
+        return self.close(
+            ns,
+            wrap(ns, T(' ').join(
+                [T('for {} in {__iter}').format(ns.visit(generators[0].target))] +
+                ['if ' + ns.visit(i) for i in generators[0].ifs] +
+                map(ns.visit, generators[1:]))),
+            __iter=iter0)
+
+    def visit_Continue(self, tree):
+        return T('{__continue}()')
+
+    def visit_Delete(self, tree):
+        cs = [c for target in tree.targets for c in self.delete_code(target)]
         if cs:
-            return '(%s, %s)[-1]' % (', '.join(cs), after)
+            return T('({}, {after})[-1]').format(T(', ').join(cs))
         else:
-            return after
-    elif type(tree) is ast.Dict:
-        return '{%s}' % ','.join([('%s:%s' % (code(k), code(v)))
-                                  for (k, v) in zip(tree.keys, tree.values)])
-    elif type(tree) is ast.DictComp:
-        return '{%s}' % (' '.join([code(tree.key) + ":" + code(tree.value)] +
-                                  [code(gen) for gen in tree.generators]))
-    elif type(tree) is ast.Ellipsis:
-        return '...'
-    elif type(tree) is ast.ExceptHandler:
+            return T('{after}')
+
+    def visit_Dict(self, tree):
+        return T('{{{}}}').format(T(',').join(
+            T('{}:{}').format(k, v)
+            for k, v in zip(map(self.visit, tree.keys), map(self.visit, tree.values))))
+
+    def visit_DictComp(self, tree):
+        return self.comprehension_code(
+            tree.generators,
+            lambda ns, g: T('{{{}: {} {}}}').format(
+                T('{}'), ns.visit(tree.value), g).format(ns.visit(tree.key)))
+
+    def visit_Ellipsis(self, tree):
+        return T('...')
+
+    def visit_ExceptHandler(self, tree):
         raise NotImplementedError('Open problem: except')
-    elif type(tree) is ast.Exec:
-        exec_code = '__exec(%s, %s, %s)' % (
-            code(tree.body),
-            '__d.__dict__' if tree.globals is None else code(tree.globals),
-            '__d.__dict__' if tree.locals is None else code(tree.locals))
-        if after != 'None':
-            return '(%s, %s)[1]' % (exec_code, after)
+
+    def visit_Exec(self, tree):
+        body = self.visit(tree.body)
+        if tree.globals is None:
+            exec_code = T('{__exec}({}, {__g}, {__l})').format(body)
+        elif tree.locals is None:
+            exec_code = T(
+                '(lambda b, g: {__exec}(b, {__g} if g is None else g, '
+                '{__l} if g is None else g))({}, {})').format(
+                    body, self.visit(tree.globals))
         else:
-            return exec_code
-    elif type(tree) is ast.Expr:
-        return '(%s, %s)[1]' % (code(tree.value), after)
-    elif type(tree) is ast.Expression:
-        return code(tree.body)
-    elif type(tree) is ast.ExtSlice:
-        return ' '.join(code(dim) + ',' for dim in tree.dims)
-    elif type(tree) is ast.For:
-        item = code(tree.target)
-        body = many_to_one(tree.body, after='__this()')
-        items = code(tree.iter)
-        orelse = many_to_one(tree.orelse, after='__after()')
-        return lambda_function({'__items': 'iter(%s)' % items, '__sentinel':
-                                '[]', '__after': 'lambda: %s' % after}) % \
-            ('__y(lambda __this: lambda: %s)()' %
-             (lambda_function({'__i': 'next(__items, __sentinel)'}) %
-              ('%s if __i is not __sentinel else %s' %
-               (lambda_function({'__break': '__after',
-                                 '__continue': '__this'}) %
-                assignment_component(body, '%s' % item, '__i'),
-                orelse))))
-    elif type(tree) is ast.FunctionDef:
-        # code() returns something of the form
+            exec_code = T(
+                '(lambda b, g, l: {__exec}(b, {__g} if g is None else g, '
+                '({__l} if g is None else g) if l is None else l))({}, {}, {})').format(
+                    body, self.visit(tree.globals), self.visit(tree.locals))
+        return T('({}, {after})[1]').format(exec_code)
+
+    def visit_Expr(self, tree):
+        return T('({}, {after})[1]').format(self.visit(tree.value))
+
+    def visit_Expression(self, tree):
+        return self.visit(tree.body)
+
+    def visit_ExtSlice(self, tree):
+        return T(' ').join(self.visit(dim) + ',' for dim in tree.dims)
+
+    def visit_For(self, tree):
+        item = self.visit(tree.target)
+        items = self.visit(tree.iter)
+        body = self.many_to_one(tree.body, after='__this()')
+        orelse = self.many_to_one(tree.orelse, after='__after()')
+        return lambda_function({'__items': T('iter({})').format(items), '__sentinel':
+                                '[]', '__after': T('lambda: {after}')}).format(
+            T('{__y}(lambda __this: lambda: {})()').format(
+                lambda_function({'__i': 'next(__items, __sentinel)'}).format(
+                    T('{} if __i is not __sentinel else {}').format(
+                        provide(
+                            assignment_component(body, item, '__i'),
+                            __break='__after', __continue='__this'),
+                        orelse))))
+
+    def visit_FunctionDef(self, tree):
+        # self.visit() returns something of the form
         # ('lambda x, y, z=5, *args:', ['x','y','z','args'])
-        args, arg_names = code(tree.args)
-        body = many_to_one(tree.body)
+        args, arg_names = self.visit(tree.args)
+        decoration = T('{}')
+        for decorator in tree.decorator_list:
+            decoration = decoration.format(T('{}({})').format(self.visit(decorator), T('{}')))
+        ns = Namespace(next(self.subtables))
+        body = ns.many_to_one(tree.body)
         if arg_names:
             body = assignment_component(body,
-                ','.join('__d.' + name for name in arg_names),
-                ','.join(arg_names))
-        function_code = args + body
-        for decorator in reversed(tree.decorator_list):
-            function_code = "%s(%s)" % (code(decorator), function_code)
-        return assignment_component(after, "__d." + tree.name, function_code)
-    elif type(tree) is ast.arguments:
+                T(',').join(ns.var(name) for name in arg_names),
+                T(',').join(arg_names))
+        body = self.close(ns, body)
+        function_code = decoration.format(args + body)
+        return assignment_component(
+            T('{after}'),
+            T('{}, {}.__name__').format(self.var(tree.name), self.var(tree.name)),
+            T('{}, {!r}').format(function_code, tree.name))
+
+    def visit_arguments(self, tree):
         # this should return something of the form
         # ('lambda x, y, z=5, *args:', ['x','y','z','args'])
         padded_defaults = [None] * (len(tree.args) -
                                     len(tree.defaults)) + tree.defaults
         arg_names = [arg.id for arg in tree.args]
         args = zip(padded_defaults, tree.args)
-        args = [a.id if d is None else a.id + "=" + code(d) for (d, a) in args]
+        args = [a.id if d is None else a.id + "=" + self.visit(d) for (d, a) in args]
         if tree.vararg is not None:
             args += ["*" + tree.vararg]
             arg_names += [tree.vararg]
         if tree.kwarg is not None:
             args += ["**" + tree.kwarg]
             arg_names += [tree.kwarg]
-        args = ",".join(args)
-        return ("lambda %s:" % (args), arg_names)
-    elif type(tree) is ast.GeneratorExp:
-        return '(%s)' % (' '.join([code(tree.elt)] +
-                                  [code(gen) for gen in tree.generators]))
-    elif type(tree) is ast.Global:
-        raise NotImplementedError('Open problem: global')
-    elif type(tree) is ast.If:
-        test = code(tree.test)
-        body = many_to_one(tree.body, after='__after()')
-        orelse = many_to_one(tree.orelse, after='__after()')
-        return ("(lambda __after: %s if %s else %s)(lambda: %s)" %
-                (body, test, orelse, after))
-    elif type(tree) is ast.IfExp:
-        return ("(%s if %s else %s)" % 
-                (code(tree.body), code(tree.test), code(tree.orelse)))
-    elif type(tree) is ast.Import:
+        args = T(',').join(args)
+        return (T('lambda {}:').format(args), arg_names)
+
+    def visit_GeneratorExp(self, tree):
+        return self.comprehension_code(
+            tree.generators,
+            lambda ns, g: T('({} {})').format(ns.visit(tree.elt), g))
+
+    def visit_Global(self, tree):
+        return T('{after}')
+
+    def visit_If(self, tree):
+        test = self.visit(tree.test)
+        body = self.many_to_one(tree.body, after='__after()')
+        orelse = self.many_to_one(tree.orelse, after='__after()')
+        return T('(lambda __after: {} if {} else {})(lambda: {after})').format(
+            body, test, orelse)
+
+    def visit_IfExp(self, tree):
+        test = self.visit(tree.test)
+        body = self.visit(tree.body)
+        orelse = self.visit(tree.orelse)
+        return T('({} if {} else {})').format(body, test, orelse)
+
+    def visit_Import(self, tree):
+        after = T('{after}')
         for alias in tree.names:
             ids = alias.name.split('.')
             if alias.asname is None:
-                after = assignment_component(after, "__d.%s" % ids[0],
-                    "__import__(%r, __d.__dict__, __d.__dict__)" % alias.name)
+                after = assignment_component(after, self.var(ids[0]),
+                    T('__import__({!r}, {__g}, {__l})').format(alias.name))
             else:
-                after = assignment_component(after, "__d.%s" % alias.asname,
-                    '.'.join(["__import__(%r, __d.__dict__, __d.__dict__)" %
-                              alias.name] + ids[1:]))
+                after = assignment_component(after, self.var(alias.asname),
+                    T('.').join([T('__import__({!r}, {__g}, {__l})').format(
+                        alias.name)] + ids[1:]))
         return after
-    elif type(tree) is ast.ImportFrom:
-        return ('(lambda __mod: %s)(__import__(%r, __d.__dict__, __d.__dict__,'
-               ' %r, %r))') % (
+
+    def visit_ImportFrom(self, tree):
+        return T('(lambda __mod: {})(__import__({!r}, {__g}, {__l},'
+                 ' {!r}, {!r}))').format(
             assignment_component(
-                after,
-                ','.join('__d.' + (alias.name if alias.asname is None
-                                   else alias.asname) for alias in tree.names),
-                ','.join('__mod.' + alias.name for alias in tree.names)),
+                T('{after}'),
+                T(',').join(self.var(alias.name if alias.asname is None
+                                     else alias.asname) for alias in tree.names),
+                T(',').join('__mod.' + alias.name for alias in tree.names)),
             '' if tree.module is None else tree.module,
             tuple(alias.name for alias in tree.names),
             tree.level)
-    elif type(tree) is ast.Index:
-        return '%s' % code(tree.value)
-    elif type(tree) is ast.Interactive:
-        return init_code % many_to_one(child_nodes(tree))
-    elif type(tree) is ast.keyword:
-        return '%s=%s' % (tree.arg, code(tree.value))
-    elif type(tree) is ast.Lambda:
-        args, arg_names = code(tree.args)
-        body = code(tree.body)
+
+    def visit_Index(self, tree):
+        return self.visit(tree.value)
+
+    def visit_keyword(self, tree):
+        return T('{}={}').format(tree.arg, self.visit(tree.value))
+
+    def visit_Lambda(self, tree):
+        args, arg_names = self.visit(tree.args)
+        ns = Namespace(next(self.subtables))
+        body = ns.visit(tree.body)
         if arg_names:
-            body = assignment_component(body, ','.join('__d.' + name
-                for name in arg_names), ','.join(arg_names))
+            body = assignment_component(body, T(',').join(ns.var(name)
+                for name in arg_names), T(',').join(arg_names))
+        body = self.close(ns, body)
         return '(' + args + body + ')'
-    elif type(tree) is ast.List:
-        elts = [code(elt) for elt in tree.elts]
-        return '[%s]' % (','.join(elts))
-    elif type(tree) is ast.ListComp:
-        return '[%s]' % (' '.join([code(tree.elt)] + [code(gen)
-            for gen in tree.generators]))
-    elif type(tree) is ast.Module:
-        return init_code % many_to_one(child_nodes(tree))
-    elif type(tree) is ast.Name:
-        return '__d.' + tree.id
-    elif type(tree) is ast.Num:
-        return repr(tree.n)
-    elif type(tree) is ast.Pass:
-        return after
-    elif type(tree) is ast.Print:
-        to_print = ','.join([code(x) for x in tree.values])
+
+    def visit_List(self, tree):
+        elts = [self.visit(elt) for elt in tree.elts]
+        return T('[{}]').format(T(',').join(elts))
+
+    def visit_ListComp(self, tree):
+        return T('[{}]').format(T(' ').join([self.visit(tree.elt)] +
+                                            map(self.visit, tree.generators)))
+
+    def visit_Name(self, tree):
+        return self.var(tree.id)
+
+    def visit_Num(self, tree):
+        return T('{!r}').format(tree.n)
+
+    def visit_Pass(self, tree):
+        return T('{after}')
+
+    def visit_Print(self, tree):
+        to_print = T('{}')
         if tree.dest is not None:
             # Abuse varargs to get the right evaluation order
-            to_print = 'file=%s, *[%s]' % (code(tree.dest), to_print)
+            to_print = T('file={}, *[{}]').format(self.visit(tree.dest), to_print)
+        to_print = to_print.format(T(',').join(self.visit(x) for x in tree.values))
         if not tree.nl:
             # TODO: This is apparently good enough for 2to3, but gets
             # many cases wrong (tests/unimplemented/softspace.py).
             to_print += ", end=' '"
-        if after != 'None':
-            return '(__print(%s), %s)[1]' % (to_print, after)
-        else:
-            return '__print(%s)' % to_print
-    elif type(tree) is ast.Raise:
+        return T('({__print}({}), {after})[1]').format(to_print)
+
+    def visit_Raise(self, tree):
         if tree.type is None:
-            return '([] for [] in []).throw(*sys.exc_info())'
+            return T('([] for [] in []).throw(*{sys}.exc_info())')
         else:
-            return '([] for [] in []).throw(%s%s%s)' % (
-                code(tree.type),
-                '' if tree.inst is None else ', ' + code(tree.inst),
-                '' if tree.tback is None else ', ' + code(tree.tback))
-    elif type(tree) is ast.Repr:
-        return '`%s`' % code(tree.value)
-    elif type(tree) is ast.Return:
-        return code(tree.value)
-    elif type(tree) is ast.Set:
+            return T('([] for [] in []).throw({}{}{})').format(
+                self.visit(tree.type),
+                '' if tree.inst is None else ', ' + self.visit(tree.inst),
+                '' if tree.tback is None else ', ' + self.visit(tree.tback))
+
+    def visit_Repr(self, tree):
+        return T('`{}`').format(self.visit(tree.value))
+
+    def visit_Return(self, tree):
+        return self.visit(tree.value)
+
+    def visit_Set(self, tree):
         assert tree.elts, '{} is a dict'
-        return '{%s}' % ', '.join(code(elt) for elt in tree.elts)
-    elif type(tree) is ast.SetComp:
-        return '{%s}' % (' '.join([code(tree.elt)] + [code(gen)
-            for gen in tree.generators]))
-    elif type(tree) is ast.Slice:
-        return '%s:%s%s' % (
-            '' if tree.lower is None else code(tree.lower),
-            '' if tree.upper is None else code(tree.upper),
-            '' if tree.step is None else ':' + code(tree.step))
-    elif type(tree) is ast.Str:
-        return repr(tree.s)
-    elif type(tree) is ast.Subscript:
-        return '%s[%s]' % (code(tree.value), code(tree.slice))
-    elif type(tree) is ast.Suite:
-        return init_code % many_to_one(child_nodes(tree))
-    elif type(tree) is ast.TryExcept:
+        return T('{{{}}}').format(T(', ').join(self.visit(elt) for elt in tree.elts))
+
+    def visit_SetComp(self, tree):
+        return self.comprehension_code(
+            tree.generators,
+            lambda ns, g: T('{{{} {}}}').format(ns.visit(tree.elt), g))
+
+    def visit_Slice(self, tree):
+        return T('{}:{}{}').format(
+            '' if tree.lower is None else self.visit(tree.lower),
+            '' if tree.upper is None else self.visit(tree.upper),
+            '' if tree.step is None else ':' + self.visit(tree.step))
+
+    def visit_Str(self, tree):
+        return T('{!r}').format(tree.s)
+
+    def visit_Subscript(self, tree):
+        return T('{}[{}]').format(self.visit(tree.value), self.visit(tree.slice))
+
+    def visit_TryExcept(self, tree):
         raise NotImplementedError('Open problem: try-except')
-    elif type(tree) is ast.TryFinally:
+
+    def visit_TryFinally(self, tree):
         raise NotImplementedError('Open problem: try-finally')
-    elif type(tree) is ast.Tuple:
-        elts = [code(elt) for elt in tree.elts]
+
+    def visit_Tuple(self, tree):
+        elts = [self.visit(elt) for elt in tree.elts]
         if len(elts) is 0:
-            return '()'
+            return T('()')
         elif len(elts) is 1:
-            return '(%s,)' % elts[0]
+            return T('({},)').format(elts[0])
         else:
-            return '(%s)' % (','.join(elts))
-    elif type(tree) is ast.UnaryOp:
-        return '(%s%s)' % (unaryop_code[type(tree.op)], code(tree.operand))
-    elif type(tree) is ast.While:
-        test = code(tree.test)
-        body = many_to_one(tree.body, after='__this()')
-        orelse = many_to_one(tree.orelse, after='__after()')
-        return lambda_function({'__after': 'lambda: %s' % after}) % \
-            ('__y(lambda __this: lambda: %s if %s else %s)()' %
-             (lambda_function({'__break': '__after', '__continue': '__this'}) %
-              body, test, orelse))
-    elif type(tree) is ast.With:
+            return T('({})').format(T(',').join(elts))
+
+    def visit_UnaryOp(self, tree):
+        return T('({}{})').format(unaryop_code[type(tree.op)], self.visit(tree.operand))
+
+    def visit_While(self, tree):
+        test = self.visit(tree.test)
+        body = self.many_to_one(tree.body, after='__this()')
+        orelse = self.many_to_one(tree.orelse, after='__after()')
+        return lambda_function({'__after': T('lambda: {after}')}).format(
+            T('{__y}(lambda __this: lambda: {} if {} else {})()').format(
+                provide(body, __break='__after', __continue='__this'),
+                test, orelse))
+
+    def visit_With(self, tree):
         raise NotImplementedError('Open problem: with')
-    elif type(tree) is ast.Yield:
+
+    def visit_Yield(self, tree):
         raise NotImplementedError('Open problem: yield')
-    else:
+
+    def generic_visit(self, tree):
         raise NotImplementedError('Case not caught: %s' % str(type(tree)))
 
 
@@ -467,21 +574,19 @@ def to_one_line(original):
     # original :: string
     # :: string
     t = ast.parse(original)
+    table = symtable.symtable(original, '<string>', 'exec')
 
     original = original.strip()
 
     # If there's only one line anyways, be lazy
     if len(original.splitlines()) == 1 and \
-       type(t) is ast.Module and \
        len(t.body) == 1 and \
        type(t.body[0]) in (ast.Delete, ast.Assign, ast.AugAssign, ast.Print,
                            ast.Raise, ast.Assert, ast.Import, ast.ImportFrom,
                            ast.Exec, ast.Global, ast.Expr, ast.Pass):
         return original
 
-    init_code = get_init_code(t)
-
-    return code(t, init_code)
+    return get_init_code(Namespace(table).many_to_one(t.body))
 
 
 # TODO: Use command line arg instead
