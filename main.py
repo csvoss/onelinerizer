@@ -90,6 +90,46 @@ def child_nodes(tree):
     return list(ast.iter_child_nodes(tree))
 
 
+boolop_code = {
+    ast.And: ' and ',
+    ast.Or: ' or ',
+}
+
+operator_code = {
+    ast.Add: '+',
+    ast.Sub: '-',
+    ast.Mult: '*',
+    ast.Div: '/',
+    ast.Mod: '%',
+    ast.Pow: '**',
+    ast.LShift: '<<',
+    ast.RShift: '>>',
+    ast.BitOr: '|',
+    ast.BitXor: '^',
+    ast.BitAnd: '&',
+    ast.FloorDiv: '//',
+}
+
+unaryop_code = {
+    ast.Invert: '~',
+    ast.Not: 'not ',
+    ast.UAdd: '+',
+    ast.USub: '-',
+}
+
+cmpop_code = {
+    ast.Eq: '==',
+    ast.NotEq: '!=',
+    ast.Lt: '<',
+    ast.LtE: '<=',
+    ast.Gt: '>',
+    ast.GtE: '>=',
+    ast.Is: ' is ',
+    ast.IsNot: ' is not ',
+    ast.In: ' in ',
+    ast.NotIn: ' not in ',
+}
+
 def many_to_one(trees, after='None'):
     # trees :: [Tree]
     # return :: string
@@ -151,11 +191,7 @@ def delete_code(target):
 
 
 def code_with_after(tree, after, init_code=None):
-    if type(tree) is ast.Add:
-        return '+'
-    elif type(tree) is ast.And:
-        return ' and '
-    elif type(tree) is ast.Assert:
+    if type(tree) is ast.Assert:
         return '(%s if %s else ([] for [] in []).throw(AssertionError%s))' % (
             after, code(tree.test),
             '' if tree.msg is None else '(%s)' % code(tree.msg))
@@ -170,7 +206,7 @@ def code_with_after(tree, after, init_code=None):
         return '%s.%s' % (code(tree.value), tree.attr)
     elif type(tree) is ast.AugAssign:
         target = code(tree.target)
-        op = code(tree.op)
+        op = operator_code[type(tree.op)]
         iop = type(tree.op).__name__.lower()
         if iop.startswith('bit'):
             iop = iop[len('bit'):]
@@ -182,15 +218,9 @@ def code_with_after(tree, after, init_code=None):
                  '%s)') % (op, iop, target, value)
         return assignment_component(after, target, value)
     elif type(tree) is ast.BinOp:
-        return '(%s%s%s)' % (code(tree.left), code(tree.op), code(tree.right))
-    elif type(tree) is ast.BitAnd:
-        return '&'
-    elif type(tree) is ast.BitOr:
-        return '|'
-    elif type(tree) is ast.BitXor:
-        return '^'
+        return '(%s%s%s)' % (code(tree.left), operator_code[type(tree.op)], code(tree.right))
     elif type(tree) is ast.BoolOp:
-        return '(%s)' % code(tree.op).join([code(val) for val in tree.values])
+        return '(%s)' % boolop_code[type(tree.op)].join([code(val) for val in tree.values])
     elif type(tree) is ast.Break:
         return '__break()'
     elif type(tree) is ast.Call:
@@ -216,7 +246,7 @@ def code_with_after(tree, after, init_code=None):
     elif type(tree) is ast.Compare:
         assert len(tree.ops) == len(tree.comparators)
         return code(tree.left) + ''.join(
-            [code(tree.ops[i]) + code(tree.comparators[i])
+            [cmpop_code[type(tree.ops[i])] + code(tree.comparators[i])
              for i in range(len(tree.ops))])
     elif type(tree) is ast.comprehension:
         return (('for %s in %s' % (code(tree.target), code(tree.iter))) +
@@ -235,12 +265,8 @@ def code_with_after(tree, after, init_code=None):
     elif type(tree) is ast.DictComp:
         return '{%s}' % (' '.join([code(tree.key) + ":" + code(tree.value)] +
                                   [code(gen) for gen in tree.generators]))
-    elif type(tree) is ast.Div:
-        return '/'
     elif type(tree) is ast.Ellipsis:
         return '...'
-    elif type(tree) is ast.Eq:
-        return '=='
     elif type(tree) is ast.ExceptHandler:
         raise NotImplementedError('Open problem: except')
     elif type(tree) is ast.Exec:
@@ -258,8 +284,6 @@ def code_with_after(tree, after, init_code=None):
         return code(tree.body)
     elif type(tree) is ast.ExtSlice:
         return ' '.join(code(dim) + ',' for dim in tree.dims)
-    elif type(tree) is ast.FloorDiv:
-        return '//'
     elif type(tree) is ast.For:
         item = code(tree.target)
         body = many_to_one(tree.body, after='__this()')
@@ -308,10 +332,6 @@ def code_with_after(tree, after, init_code=None):
                                   [code(gen) for gen in tree.generators]))
     elif type(tree) is ast.Global:
         raise NotImplementedError('Open problem: global')
-    elif type(tree) is ast.Gt:
-        return '>'
-    elif type(tree) is ast.GtE:
-        return '>='
     elif type(tree) is ast.If:
         test = code(tree.test)
         body = many_to_one(tree.body, after='__after()')
@@ -343,20 +363,10 @@ def code_with_after(tree, after, init_code=None):
             '' if tree.module is None else tree.module,
             tuple(alias.name for alias in tree.names),
             tree.level)
-    elif type(tree) is ast.In:
-        return ' in '
     elif type(tree) is ast.Index:
         return '%s' % code(tree.value)
     elif type(tree) is ast.Interactive:
         return init_code % many_to_one(child_nodes(tree))
-    elif type(tree) is ast.Invert:
-        return '~'
-    elif type(tree) is ast.Is:
-        return ' is '
-    elif type(tree) is ast.IsNot:
-        return ' is not '
-    elif type(tree) is ast.LShift:
-        return '<<'
     elif type(tree) is ast.keyword:
         return '%s=%s' % (tree.arg, code(tree.value))
     elif type(tree) is ast.Lambda:
@@ -372,40 +382,20 @@ def code_with_after(tree, after, init_code=None):
     elif type(tree) is ast.ListComp:
         return '[%s]' % (' '.join([code(tree.elt)] + [code(gen)
             for gen in tree.generators]))
-    elif type(tree) is ast.Lt:
-        return '<'
-    elif type(tree) is ast.LtE:
-        return '<='
-    elif type(tree) is ast.Mod:
-        return '%'
     elif type(tree) is ast.Module:
         return init_code % many_to_one(child_nodes(tree))
-    elif type(tree) is ast.Mult:
-        return '*'
     elif type(tree) is ast.Name:
         return '__d.' + tree.id
-    elif type(tree) is ast.Not:
-        return 'not '
-    elif type(tree) is ast.NotEq:
-        return '!='
-    elif type(tree) is ast.NotIn:
-        return ' not in '
     elif type(tree) is ast.Num:
         return repr(tree.n)
-    elif type(tree) is ast.Or:
-        return ' or '
     elif type(tree) is ast.Pass:
         return after
-    elif type(tree) is ast.Pow:
-        return '**'
     elif type(tree) is ast.Print:
         to_print = ','.join([code(x) for x in tree.values])
         if after != 'None':
             return '(__print(%s), %s)[1]' % (to_print, after)
         else:
             return '__print(%s)' % to_print
-    elif type(tree) is ast.RShift:
-        return '>>'
     elif type(tree) is ast.Raise:
         if tree.type is None:
             return '([] for [] in []).throw(*sys.exc_info())'
@@ -431,8 +421,6 @@ def code_with_after(tree, after, init_code=None):
             '' if tree.step is None else ':' + code(tree.step))
     elif type(tree) is ast.Str:
         return repr(tree.s)
-    elif type(tree) is ast.Sub:
-        return '-'
     elif type(tree) is ast.Subscript:
         return '%s[%s]' % (code(tree.value), code(tree.slice))
     elif type(tree) is ast.Suite:
@@ -449,12 +437,8 @@ def code_with_after(tree, after, init_code=None):
             return '(%s,)' % elts[0]
         else:
             return '(%s)' % (','.join(elts))
-    elif type(tree) is ast.UAdd:
-        return '+'
-    elif type(tree) is ast.USub:
-        return '-'
     elif type(tree) is ast.UnaryOp:
-        return '(%s%s)' % (code(tree.op), code(tree.operand))
+        return '(%s%s)' % (unaryop_code[type(tree.op)], code(tree.operand))
     elif type(tree) is ast.While:
         test = code(tree.test)
         body = many_to_one(tree.body, after='__this()')
