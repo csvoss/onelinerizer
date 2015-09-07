@@ -145,7 +145,6 @@ Not Implemented
 Open Problems
 -------------
 * try/except/finally
-* global variables
 * with
 * yield
 

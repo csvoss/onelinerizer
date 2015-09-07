@@ -370,7 +370,7 @@ class Namespace(ast.NodeVisitor):
             lambda ns, g: T('({} {})').format(ns.visit(tree.elt), g))
 
     def visit_Global(self, tree):
-        raise NotImplementedError('Open problem: global')
+        return T('{after}')
 
     def visit_If(self, tree):
         test = self.visit(tree.test)
