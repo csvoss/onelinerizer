@@ -195,18 +195,51 @@ class Namespace(ast.NodeVisitor):
         return T('{}.{}').format(self.visit(tree.value), tree.attr)
 
     def visit_AugAssign(self, tree):
-        target = self.visit(tree.target)
+        if type(tree.target) is ast.Attribute:
+            target_params = ['__target']
+            target_args = [self.visit(tree.target.value)]
+            target_value = T('__target.{}').format(tree.target.attr)
+            old = T('{__old}')
+        elif type(tree.target) is ast.Subscript:
+            if type(tree.target.slice) is ast.Slice and tree.target.slice.step is None:
+                target_params = ['__target']
+                target_args = [self.visit(tree.target.value)]
+                if tree.target.slice.lower is not None:
+                    target_params.append('__lower')
+                    target_args.append(self.visit(tree.target.slice.lower))
+                if tree.target.slice.upper is not None:
+                    target_params.append('__upper')
+                    target_args.append(self.visit(tree.target.slice.upper))
+                target_value = T('__target[{}:{}]').format(
+                    '' if tree.target.slice.lower is None else '__lower',
+                    '' if tree.target.slice.upper is None else '__upper')
+            else:
+                target_params = ['__target', '__slice']
+                target_args = [self.visit(tree.target.value), self.slice_repr(tree.target.slice)]
+                target_value = '__target[__slice]'
+            old = T('{__old}')
+        elif type(tree.target) is ast.Name:
+            target_params = []
+            target_args = []
+            old = target_value = self.var(tree.target.id)
+        else:
+            raise SyntaxError('illegal expression for augmented assignment')
+
         op = operator_code[type(tree.op)]
         iop = type(tree.op).__name__.lower()
         if iop.startswith('bit'):
             iop = iop[len('bit'):]
         iop = '__i%s__' % iop
         value = self.visit(tree.value)
-        value = T('(lambda __target, __value: (lambda __ret: __target {} '
+        return T('(lambda {}: {})({})').format(
+            T(', ').join(target_params + ['__value']),
+            assignment_component(T('{after}'), target_value, provide(
+                T('(lambda __ret: {} {} '
                   '__value if __ret is NotImplemented else __ret)(getattr('
-                  '__target, {!r}, lambda other: NotImplemented)(__value)))({}, '
-                  '{})').format(op, iop, target, value)
-        return assignment_component(T('{after}'), target, value)
+                  '{}, {!r}, lambda other: NotImplemented)(__value))').format(
+                      old, op, old, iop),
+                __old=target_value)),
+            T(', ').join(target_args + [value]))
 
     def visit_BinOp(self, tree):
         return T('({}{}{})').format(self.visit(tree.left), operator_code[type(tree.op)], self.visit(tree.right))
