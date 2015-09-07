@@ -1,8 +1,10 @@
-def trace(self, *args):
-    print repr(args)
+def trace(name):
+    def f(self, *args):
+        print name, repr(args)
+        return 0
+    return f
 
-for ns in [['__%sitem__'], ['__%sitem__', '__%sslice__']]:
-    a = type('dummy', (), {n % a: trace for a in ['get', 'set', 'del'] for n in ns})()
+def get(a):
     a[1]
     a[...]
     a[:]
@@ -25,6 +27,7 @@ for ns in [['__%sitem__'], ['__%sitem__', '__%sslice__']]:
     a[:,]
     a[::,]
 
+def set(a):
     a[1] = 0
     a[...] = 0
     a[:] = 0
@@ -47,6 +50,30 @@ for ns in [['__%sitem__'], ['__%sitem__', '__%sslice__']]:
     a[:,] = 0
     a[::,] = 0
 
+def aug(a):
+    a[1] += 0
+    a[...] += 0
+    a[:] += 0
+    a[2:] += 0
+    a[:3] += 0
+    a[4:5] += 0
+    a[::] += 0
+    a[6::] += 0
+    a[:7:] += 0
+    a[::8] += 0
+    a[9:10:] += 0
+    a[11::12] += 0
+    a[:13:14] += 0
+    a[15:16:17] += 0
+    a[18, 19:20, 21:22:23, :, ::, ...] += 0
+    a[24,] += 0
+    a[25:26,] += 0
+    a[27:28:29,] += 0
+    a[...,] += 0
+    a[:,] += 0
+    a[::,] += 0
+
+def delete(a):
     del a[1]
     del a[...]
     del a[:]
@@ -68,3 +95,10 @@ for ns in [['__%sitem__'], ['__%sitem__', '__%sslice__']]:
     del a[...,]
     del a[:,]
     del a[::,]
+
+for ns in [['__%sitem__'], ['__%sitem__', '__%sslice__']]:
+    a = type('dummy', (), {n % a: trace(n % a) for a in ['get', 'set', 'del'] for n in ns})()
+    get(a)
+    set(a)
+    aug(a)
+    delete(a)
