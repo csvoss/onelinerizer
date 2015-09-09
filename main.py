@@ -35,17 +35,13 @@ def get_init_code(output):
 
     output = provide(
         output.format(__l=T('{__g}')),
-        __print=T("{__builtin__}.__dict__['print']"),
+        __print=T("__import__('__builtin__').__dict__['print']"),
         __exec="__import__('trace').Trace(count=False,"
                " trace=False).runctx",
         __y="(lambda f: (lambda x: x(x))(lambda y:"
           " f(lambda: y(y)())))",
         __g=T("globals()"),
         sys="__import__('sys')")
-
-    output = provide(
-        output,
-        __builtin__="__import__('__builtin__')")
 
     return output.close()
 
