@@ -389,11 +389,20 @@ class Namespace(ast.NodeVisitor):
                 T(',').join(ns.var(name) for name in arg_names),
                 T(',').join(arg_names))
         body = self.close(ns, body)
-        function_code = decoration.format(args + body)
-        return assignment_component(
-            T('{after}'),
-            T('{}, {}.__name__').format(self.store_var(tree.name), self.var(tree.name)),
-            T('{}, {!r}').format(function_code, tree.name))
+        function_code = args + body
+        if tree.decorator_list:
+            return assignment_component(
+                T('{after}'),
+                self.store_var(tree.name),
+                decoration.format(assignment_component(
+                    '__func',
+                    '__func, __func.__name__',
+                    T('{}, {!r}').format(function_code, tree.name))))
+        else:
+            return assignment_component(
+                T('{after}'),
+                T('{}, {}.__name__').format(self.store_var(tree.name), self.var(tree.name)),
+                T('{}, {!r}').format(function_code, tree.name))
 
     def visit_arguments(self, tree):
         # this should return something of the form
