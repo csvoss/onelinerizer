@@ -324,7 +324,7 @@ class Namespace(ast.NodeVisitor):
 
     def visit_Dict(self, tree):
         return T('{{{}}}').format(T(', ').join(
-            T('{}:{}').format(k, v)
+            T('{}: {}').format(k, v)
             for k, v in zip(map(self.visit, tree.keys), map(self.visit, tree.values))))
 
     def visit_DictComp(self, tree):
@@ -382,7 +382,7 @@ class Namespace(ast.NodeVisitor):
 
     def visit_FunctionDef(self, tree):
         # self.visit() returns something of the form
-        # ('lambda x, y, z=5, *args:', ['x', 'y', 'z', 'args'])
+        # ('lambda x, y, z=5, *args: ', ['x', 'y', 'z', 'args'])
         args, arg_names = self.visit(tree.args)
         decoration = T('{}')
         for decorator in tree.decorator_list:
@@ -402,7 +402,7 @@ class Namespace(ast.NodeVisitor):
 
     def visit_arguments(self, tree):
         # this should return something of the form
-        # ('lambda x, y, z=5, *args:', ['x', 'y', 'z', 'args'])
+        # ('lambda x, y, z=5, *args: ', ['x', 'y', 'z', 'args'])
         padded_defaults = [None] * (len(tree.args) -
                                     len(tree.defaults)) + tree.defaults
         arg_names = [arg.id for arg in tree.args]
@@ -415,7 +415,7 @@ class Namespace(ast.NodeVisitor):
             args += ["**" + tree.kwarg]
             arg_names += [tree.kwarg]
         args = T(', ').join(args)
-        return (T('lambda {}:').format(args), arg_names)
+        return (T('lambda {}: ').format(args), arg_names)
 
     def visit_GeneratorExp(self, tree):
         return self.comprehension_code(
