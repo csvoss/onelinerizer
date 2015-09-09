@@ -40,7 +40,7 @@ def get_init_code(output):
                " trace=False).runctx",
         __y="(lambda f: (lambda x: x(x))(lambda y:"
           " f(lambda: y(y)())))",
-        __g=T("{__builtin__}.__dict__.copy()"),
+        __g=T("globals()"),
         sys="__import__('sys')")
 
     output = provide(
@@ -103,12 +103,23 @@ class Namespace(ast.NodeVisitor):
 
     def var(self, name):
         sym = self.table.lookup(name)
+        if sym.is_global() or (self.table.get_type() == 'module' and sym.is_local()):
+            return T('{}').format(name)
+        elif sym.is_local():
+            return T('{__l}[{!r}]').format(name)
+        elif sym.is_free():
+            return T('{__f}[{!r}]()').format(name)
+        else:
+            raise SyntaxError('confusing symbol {!r}'.format(name))
+
+    def store_var(self, name):
+        sym = self.table.lookup(name)
         if sym.is_global():
             return T('{__g}[{!r}]').format(name)
         elif sym.is_local():
             return T('{__l}[{!r}]').format(name)
         elif sym.is_free():
-            return T('{__f}[{!r}]()').format(name)
+            raise SyntaxError('storing free variable {!r}'.format(name))
         else:
             raise SyntaxError('confusing symbol {!r}'.format(name))
 
@@ -221,7 +232,7 @@ class Namespace(ast.NodeVisitor):
         elif type(tree.target) is ast.Name:
             target_params = []
             target_args = []
-            old = target_value = self.var(tree.target.id)
+            old = target_value = self.store_var(tree.target.id)
         else:
             raise SyntaxError('illegal expression for augmented assignment')
 
@@ -278,7 +289,7 @@ class Namespace(ast.NodeVisitor):
         body = provide(body, __l='{}')
         class_code = T('type({!r}, ({}), {})').format(tree.name, bases, body)
         class_code = decoration.format(class_code)
-        return assignment_component(T('{after}'), self.var(tree.name), class_code)
+        return assignment_component(T('{after}'), self.store_var(tree.name), class_code)
 
     def visit_Compare(self, tree):
         assert len(tree.ops) == len(tree.comparators)
@@ -385,7 +396,7 @@ class Namespace(ast.NodeVisitor):
         function_code = decoration.format(args + body)
         return assignment_component(
             T('{after}'),
-            T('{}, {}.__name__').format(self.var(tree.name), self.var(tree.name)),
+            T('{}, {}.__name__').format(self.store_var(tree.name), self.var(tree.name)),
             T('{}, {!r}').format(function_code, tree.name))
 
     def visit_arguments(self, tree):
@@ -431,10 +442,10 @@ class Namespace(ast.NodeVisitor):
         for alias in tree.names:
             ids = alias.name.split('.')
             if alias.asname is None:
-                after = assignment_component(after, self.var(ids[0]),
+                after = assignment_component(after, self.store_var(ids[0]),
                     T('__import__({!r}, {__g}, {__l})').format(alias.name))
             else:
-                after = assignment_component(after, self.var(alias.asname),
+                after = assignment_component(after, self.store_var(alias.asname),
                     T('.').join([T('__import__({!r}, {__g}, {__l})').format(
                         alias.name)] + ids[1:]))
         return after
@@ -444,8 +455,8 @@ class Namespace(ast.NodeVisitor):
                  ' {!r}, {!r}))').format(
             assignment_component(
                 T('{after}'),
-                T(',').join(self.var(alias.name if alias.asname is None
-                                     else alias.asname) for alias in tree.names),
+                T(',').join(self.store_var(alias.name if alias.asname is None
+                                           else alias.asname) for alias in tree.names),
                 T(',').join('__mod.' + alias.name for alias in tree.names)),
             '' if tree.module is None else tree.module,
             tuple(alias.name for alias in tree.names),
@@ -462,7 +473,7 @@ class Namespace(ast.NodeVisitor):
         ns = Namespace(next(self.subtables))
         body = ns.visit(tree.body)
         if arg_names:
-            body = assignment_component(body, T(',').join(ns.var(name)
+            body = assignment_component(body, T(',').join(ns.store_var(name)
                 for name in arg_names), T(',').join(arg_names))
         body = self.close(ns, body)
         return '(' + args + body + ')'
@@ -476,7 +487,10 @@ class Namespace(ast.NodeVisitor):
                                             map(self.visit, tree.generators)))
 
     def visit_Name(self, tree):
-        return self.var(tree.id)
+        if isinstance(tree.ctx, (ast.Store, ast.AugStore)):
+            return self.store_var(tree.id)
+        else:
+            return self.var(tree.id)
 
     def visit_Num(self, tree):
         return T('{!r}').format(tree.n)
