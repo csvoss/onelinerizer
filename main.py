@@ -78,12 +78,12 @@ unaryop_code = {
 }
 
 cmpop_code = {
-    ast.Eq: '==',
-    ast.NotEq: '!=',
-    ast.Lt: '<',
-    ast.LtE: '<=',
-    ast.Gt: '>',
-    ast.GtE: '>=',
+    ast.Eq: ' == ',
+    ast.NotEq: ' != ',
+    ast.Lt: ' < ',
+    ast.LtE: ' <= ',
+    ast.Gt: ' > ',
+    ast.GtE: ' >= ',
     ast.Is: ' is ',
     ast.IsNot: ' is not ',
     ast.In: ' in ',
@@ -254,7 +254,7 @@ class Namespace(ast.NodeVisitor):
             T(', ').join(target_args + [value]))
 
     def visit_BinOp(self, tree):
-        return T('({}{}{})').format(self.visit(tree.left), operator_code[type(tree.op)], self.visit(tree.right))
+        return T('({} {} {})').format(self.visit(tree.left), operator_code[type(tree.op)], self.visit(tree.right))
 
     def visit_BoolOp(self, tree):
         return T('({})').format(T(boolop_code[type(tree.op)]).join(map(self.visit, tree.values)))
