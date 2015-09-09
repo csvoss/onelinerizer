@@ -16,7 +16,7 @@ Installation and Usage
 $ git clone https://github.com/csvoss/oneliner
 $ cd oneliner
 $ python main.py target_file.py --debug
-$ python target_file.ol.py
+$ python target_file_ol.py
 ```
 
 Examples
@@ -114,7 +114,7 @@ I'm guessing it's slower, but no more than linearly so; I have yet to analyze th
 The one-lined code tends to contain many nested lambdas; if there are too many, Python will refuse to run it.
 
 ```sh
-$ python main.ol.py
+$ python main_ol.py
 s_push: parser stack overflow
 MemoryError
 ```
@@ -122,7 +122,7 @@ MemoryError
 This can be fixed using pypy.
 
 ```sh
-$ pypy main.ol.py
+$ pypy main_ol.py
 ````
 
 However, since while loops and for loops are implemented with recursion, you might encounter `maximum recursion depth exceeded` errors during runtime if your loops go on for too long.

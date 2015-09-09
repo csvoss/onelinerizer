@@ -611,7 +611,7 @@ if __name__ == '__main__':
             ]
     parser = argparse.ArgumentParser(usage='\n       '.join(usage),
         description=("if infile is given and outfile is not, outfile will be "
-                     "infile.ol.py"))
+                     "infile_ol.py"))
     parser.add_argument('file_one', nargs='?')
     parser.add_argument('file_two', nargs='?')
     parser.add_argument('--debug', action='store_true')
@@ -627,10 +627,10 @@ if __name__ == '__main__':
         # I have gotten one argument. If there's something to read from
         # sys.stdin, read from there.
         if sys.stdin.isatty():  # nothing at sys.stdin
-            if 'py' in args.file_one:
-                outfilename = '.ol.py'.join(args.file_one.rsplit(".py", 1))
+            if args.file_one.endswith('.py'):
+                outfilename = '_ol.py'.join(args.file_one.rsplit(".py", 1))
             else:
-                outfilename = args.file_one + '.ol.py'
+                outfilename = args.file_one + '_ol.py'
         else:  # I see something at sys.stdin
             original = sys.stdin.read()
             outfilename = args.file_one
