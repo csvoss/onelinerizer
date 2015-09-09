@@ -26,12 +26,18 @@ def provide(body, **subs):
         return body
 
 
-def get_init_code(output):
+def get_init_code(tree, table):
     # Calculate the helper variables that we will need, wrap the output
     # code in a definition of those variables.
 
     # TODO: Short-circuit to something far simpler if the program has but one
     # print statement.
+
+    output = Namespace(table).many_to_one(tree.body)
+
+    doc = ast.get_docstring(tree, clean=False)
+    if doc is not None:
+        output = assignment_component(output, T("{__g}['__doc__']"), repr(doc))
 
     output = provide(
         output.format(__l=T('{__g}')),
@@ -282,7 +288,8 @@ class Namespace(ast.NodeVisitor):
             decoration = decoration.format(T('{}({})').format(self.visit(decorator), T('{}')))
         ns = Namespace(next(self.subtables))
         body = ns.many_to_one(tree.body, after=T('{__l}'))
-        body = provide(body, __l='{}')
+        doc = ast.get_docstring(tree, clean=False)
+        body = provide(body, __l=repr({} if doc is None else {'__doc__': doc}))
         class_code = T('type({!r}, ({}), {})').format(tree.name, bases, body)
         class_code = decoration.format(class_code)
         return assignment_component(T('{after}'), self.store_var(tree.name), class_code)
@@ -390,19 +397,23 @@ class Namespace(ast.NodeVisitor):
                 T(',').join(arg_names))
         body = self.close(ns, body)
         function_code = args + body
+        doc = ast.get_docstring(tree, clean=False)
         if tree.decorator_list:
             return assignment_component(
                 T('{after}'),
                 self.store_var(tree.name),
                 decoration.format(assignment_component(
                     '__func',
-                    '__func, __func.__name__',
-                    T('{}, {!r}').format(function_code, tree.name))))
+                    '__func, __func.__name__' + ('' if doc is None else ', __func.__doc__'),
+                    T('{}, {!r}' + ('' if doc is None else ', {!r}')).format(
+                        function_code, tree.name, doc))))
         else:
             return assignment_component(
                 T('{after}'),
-                T('{}, {}.__name__').format(self.store_var(tree.name), self.var(tree.name)),
-                T('{}, {!r}').format(function_code, tree.name))
+                T('{}, {}.__name__' + ('' if doc is None else ', {}.__doc__')).format(
+                    self.store_var(tree.name), self.var(tree.name), self.var(tree.name)),
+                T('{}, {!r}' + ('' if doc is None else ', {!r}')).format(
+                    function_code, tree.name, doc))
 
     def visit_arguments(self, tree):
         # this should return something of the form
@@ -605,7 +616,7 @@ def to_one_line(original):
                            ast.Exec, ast.Global, ast.Expr, ast.Pass):
         return original
 
-    return get_init_code(Namespace(table).many_to_one(t.body))
+    return get_init_code(t, table)
 
 
 # TODO: Use command line arg instead
