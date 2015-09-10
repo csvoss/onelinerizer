@@ -290,7 +290,8 @@ class Namespace(ast.NodeVisitor):
         ns = Namespace(next(self.subtables))
         body = ns.many_to_one(tree.body, after=T('{__l}'))
         doc = ast.get_docstring(tree, clean=False)
-        body = provide(body, __l=repr({} if doc is None else {'__doc__': doc}))
+        body = provide(body, __l="{{'__module__': __name__{}}}".format(
+            '' if doc is None else ", '__doc__': {!r}".format(doc)))
         if tree.bases:
             class_code = T("(lambda __bases, __dict: __dict.get('__metaclass__', getattr(__bases[0], '__class__', {__types}.ClassType))({!r}, __bases, __dict))(({}), {})").format(
                 tree.name, bases, body)
