@@ -47,7 +47,7 @@ def get_init_code(tree, table):
         __y="(lambda f: (lambda x: x(x))(lambda y:"
           " f(lambda: y(y)())))",
         __g=T("globals()"),
-        sys="__import__('sys')")
+        __sys="__import__('sys')")
 
     return output.close()
 
@@ -179,7 +179,7 @@ class Namespace(ast.NodeVisitor):
                           'None' if target.slice.upper is None else '__upper',
                           '0' if target.slice.lower is None
                               else self.visit(target.slice.lower),
-                          T('{sys}.maxint') if target.slice.upper is None
+                          T('{__sys}.maxint') if target.slice.upper is None
                               else self.visit(target.slice.upper)))]
             else:
                 return [T('{}.__delitem__({})').format(self.visit(target.value),
@@ -528,7 +528,7 @@ class Namespace(ast.NodeVisitor):
 
     def visit_Raise(self, tree):
         if tree.type is None:
-            return T('([] for [] in []).throw(*{sys}.exc_info())')
+            return T('([] for [] in []).throw(*{__sys}.exc_info())')
         else:
             return T('([] for [] in []).throw({}{}{})').format(
                 self.visit(tree.type),
