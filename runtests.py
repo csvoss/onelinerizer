@@ -54,9 +54,10 @@ def capture_exec(code_string):
 ## Monkey-patch 
 for subdir, dirs, files in os.walk(TEST_DIRECTORY):
     for filename in files:
-        if not 'unimplemented' in subdir:
+        root, ext = os.path.splitext(filename)
+        if ext == '.py' and 'unimplemented' not in subdir:
             setattr(TestOneLine,
-                    'test_%s' % filename.split('.')[0],
+                    'test_%s' % root,
                     make_test(os.path.join(subdir, filename)))
 
 if __name__ == '__main__':
