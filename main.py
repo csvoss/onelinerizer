@@ -601,42 +601,32 @@ DEBUG = True
 
 if __name__ == '__main__':
     usage = ['python main.py --help',
-            'python main.py infile.py outfile.py',
-            'cat infile > python main.py outfile.py',
-            'cat infile > python main.py > outfile.py'
+             'python main.py [--debug] [infile.py [outfile.py]]',
             ]
     parser = argparse.ArgumentParser(usage='\n       '.join(usage),
         description=("if infile is given and outfile is not, outfile will be "
                      "infile_ol.py"))
-    parser.add_argument('file_one', nargs='?')
-    parser.add_argument('file_two', nargs='?')
+    parser.add_argument('infile', nargs='?')
+    parser.add_argument('outfile', nargs='?')
     parser.add_argument('--debug', action='store_true')
     args = parser.parse_args()
     original = None
-    if args.file_one is None:
+    if args.infile is None:
         # I have gotten no arguments. Look at sys.stdin
-        if sys.stdin.isatty():
-            sys.exit('No input. see python main.py --help')
         original = sys.stdin.read()
         outfilename = None
-    elif args.file_two is None:
+    elif args.outfile is None:
         # I have gotten one argument. If there's something to read from
         # sys.stdin, read from there.
-        if sys.stdin.isatty():  # nothing at sys.stdin
-            if args.file_one.endswith('.py'):
-                outfilename = '_ol.py'.join(args.file_one.rsplit(".py", 1))
-            else:
-                outfilename = args.file_one + '_ol.py'
-        else:  # I see something at sys.stdin
-            original = sys.stdin.read()
-            outfilename = args.file_one
+        if args.infile.endswith('.py'):
+            outfilename = '_ol.py'.join(args.infile.rsplit(".py", 1))
+        else:
+            outfilename = args.infile + '_ol.py'
     else:
-        if not sys.stdin.isatty():
-            sys.exit('why did you give me something on sys.stdin?')
-        outfilename = args.file_two
+        outfilename = args.outfile
 
     if original is None:
-        infile = open(args.file_one)
+        infile = open(args.infile)
         original = infile.read().strip()
         infile.close()
     onelined = to_one_line(original)
