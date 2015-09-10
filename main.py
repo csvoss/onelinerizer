@@ -74,12 +74,12 @@ unaryop_code = {
 }
 
 cmpop_code = {
-    ast.Eq: '==',
-    ast.NotEq: '!=',
-    ast.Lt: '<',
-    ast.LtE: '<=',
-    ast.Gt: '>',
-    ast.GtE: '>=',
+    ast.Eq: ' == ',
+    ast.NotEq: ' != ',
+    ast.Lt: ' < ',
+    ast.LtE: ' <= ',
+    ast.Gt: ' > ',
+    ast.GtE: ' >= ',
     ast.Is: ' is ',
     ast.IsNot: ' is not ',
     ast.In: ' in ',
@@ -155,7 +155,8 @@ class Namespace(ast.NodeVisitor):
                 'None' if slice.upper is None else self.visit(slice.upper),
                 'None' if slice.step is None else self.visit(slice.step))
         elif type(slice) is ast.ExtSlice:
-            return T('({})').format(T(' ').join(self.slice_repr(dim) + ',' for dim in slice.dims))
+            return T('({})').format(T(', ').join(map(self.slice_repr, slice.dims)) +
+                                    ','*(len(slice.dims) == 1))
         elif type(slice) is ast.Index:
             return self.visit(slice.value)
         else:
@@ -193,7 +194,7 @@ class Namespace(ast.NodeVisitor):
     def visit_Assign(self, tree):
         targets = [self.visit(target) for target in tree.targets]
         value = self.visit(tree.value)
-        targets = T(',').join(targets)
+        targets = T(', ').join(targets)
         return assignment_component(T('{after}'), targets,
             value if len(tree.targets) == 1
                   else T('[{}]*{}').format(value, len(tree.targets)))
@@ -249,7 +250,7 @@ class Namespace(ast.NodeVisitor):
             T(', ').join(target_args + [value]))
 
     def visit_BinOp(self, tree):
-        return T('({}{}{})').format(self.visit(tree.left), operator_code[type(tree.op)], self.visit(tree.right))
+        return T('({} {} {})').format(self.visit(tree.left), operator_code[type(tree.op)], self.visit(tree.right))
 
     def visit_BoolOp(self, tree):
         return T('({})').format(T(boolop_code[type(tree.op)]).join(map(self.visit, tree.values)))
@@ -270,13 +271,12 @@ class Namespace(ast.NodeVisitor):
         else:
             kwargs = ["**" + self.visit(tree.kwargs)]
         elems = args + keywords + starargs + kwargs
-        comma_sep_elems = T(',').join(elems)
+        comma_sep_elems = T(', ').join(elems)
         return T('{}({})').format(func, comma_sep_elems)
 
     def visit_ClassDef(self, tree):
-        bases = T(', ').join(map(self.visit, tree.bases))
-        if len(tree.bases) == 1:
-            bases += ','
+        bases = (T(', ').join(map(self.visit, tree.bases)) +
+                 ','*(len(tree.bases) == 1))
         decoration = T('{}')
         for decorator in tree.decorator_list:
             decoration = decoration.format(T('{}({})').format(self.visit(decorator), T('{}')))
@@ -319,8 +319,8 @@ class Namespace(ast.NodeVisitor):
             return T('{after}')
 
     def visit_Dict(self, tree):
-        return T('{{{}}}').format(T(',').join(
-            T('{}:{}').format(k, v)
+        return T('{{{}}}').format(T(', ').join(
+            T('{}: {}').format(k, v)
             for k, v in zip(map(self.visit, tree.keys), map(self.visit, tree.values))))
 
     def visit_DictComp(self, tree):
@@ -358,7 +358,8 @@ class Namespace(ast.NodeVisitor):
         return self.visit(tree.body)
 
     def visit_ExtSlice(self, tree):
-        return T(' ').join(self.visit(dim) + ',' for dim in tree.dims)
+        return (T(', ').join(map(self.visit, tree.dims)) +
+                ','*(len(tree.dims) == 1))
 
     def visit_For(self, tree):
         item = self.visit(tree.target)
@@ -377,7 +378,7 @@ class Namespace(ast.NodeVisitor):
 
     def visit_FunctionDef(self, tree):
         # self.visit() returns something of the form
-        # ('lambda x, y, z=5, *args:', ['x','y','z','args'])
+        # ('lambda x, y, z=5, *args: ', ['x', 'y', 'z', 'args'])
         args, arg_names = self.visit(tree.args)
         decoration = T('{}')
         for decorator in tree.decorator_list:
@@ -386,8 +387,8 @@ class Namespace(ast.NodeVisitor):
         body = ns.many_to_one(tree.body)
         if arg_names:
             body = assignment_component(body,
-                T(',').join(ns.var(name) for name in arg_names),
-                T(',').join(arg_names))
+                T(', ').join(ns.var(name) for name in arg_names),
+                T(', ').join(arg_names))
         body = self.close(ns, body)
         function_code = decoration.format(args + body)
         return assignment_component(
@@ -397,7 +398,7 @@ class Namespace(ast.NodeVisitor):
 
     def visit_arguments(self, tree):
         # this should return something of the form
-        # ('lambda x, y, z=5, *args:', ['x','y','z','args'])
+        # ('lambda x, y, z=5, *args: ', ['x', 'y', 'z', 'args'])
         padded_defaults = [None] * (len(tree.args) -
                                     len(tree.defaults)) + tree.defaults
         arg_names = [arg.id for arg in tree.args]
@@ -409,8 +410,8 @@ class Namespace(ast.NodeVisitor):
         if tree.kwarg is not None:
             args += ["**" + tree.kwarg]
             arg_names += [tree.kwarg]
-        args = T(',').join(args)
-        return (T('lambda {}:').format(args), arg_names)
+        args = T(', ').join(args)
+        return (T('lambda {}: ').format(args), arg_names)
 
     def visit_GeneratorExp(self, tree):
         return self.comprehension_code(
@@ -451,9 +452,9 @@ class Namespace(ast.NodeVisitor):
                  ' {!r}, {!r}))').format(
             assignment_component(
                 T('{after}'),
-                T(',').join(self.store_var(alias.name if alias.asname is None
-                                           else alias.asname) for alias in tree.names),
-                T(',').join('__mod.' + alias.name for alias in tree.names)),
+                T(', ').join(self.store_var(alias.name if alias.asname is None
+                                            else alias.asname) for alias in tree.names),
+                T(', ').join('__mod.' + alias.name for alias in tree.names)),
             '' if tree.module is None else tree.module,
             tuple(alias.name for alias in tree.names),
             tree.level)
@@ -469,14 +470,14 @@ class Namespace(ast.NodeVisitor):
         ns = Namespace(next(self.subtables))
         body = ns.visit(tree.body)
         if arg_names:
-            body = assignment_component(body, T(',').join(ns.store_var(name)
-                for name in arg_names), T(',').join(arg_names))
+            body = assignment_component(body, T(', ').join(ns.store_var(name)
+                for name in arg_names), T(', ').join(arg_names))
         body = self.close(ns, body)
         return '(' + args + body + ')'
 
     def visit_List(self, tree):
         elts = [self.visit(elt) for elt in tree.elts]
-        return T('[{}]').format(T(',').join(elts))
+        return T('[{}]').format(T(', ').join(elts))
 
     def visit_ListComp(self, tree):
         return T('[{}]').format(T(' ').join([self.visit(tree.elt)] +
@@ -499,7 +500,7 @@ class Namespace(ast.NodeVisitor):
         if tree.dest is not None:
             # Abuse varargs to get the right evaluation order
             to_print = T('file={}, *[{}]').format(self.visit(tree.dest), to_print)
-        to_print = to_print.format(T(',').join(self.visit(x) for x in tree.values))
+        to_print = to_print.format(T(', ').join(self.visit(x) for x in tree.values))
         if not tree.nl:
             # TODO: This is apparently good enough for 2to3, but gets
             # many cases wrong (tests/unimplemented/softspace.py).
@@ -549,13 +550,8 @@ class Namespace(ast.NodeVisitor):
         raise NotImplementedError('Open problem: try-finally')
 
     def visit_Tuple(self, tree):
-        elts = [self.visit(elt) for elt in tree.elts]
-        if len(elts) is 0:
-            return T('()')
-        elif len(elts) is 1:
-            return T('({},)').format(elts[0])
-        else:
-            return T('({})').format(T(',').join(elts))
+        return T('({})').format(T(', ').join(map(self.visit, tree.elts)) +
+                                ','*(len(tree.elts) == 1))
 
     def visit_UnaryOp(self, tree):
         return T('({}{})').format(unaryop_code[type(tree.op)], self.visit(tree.operand))
