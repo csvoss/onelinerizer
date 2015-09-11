@@ -303,9 +303,9 @@ class Namespace(ast.NodeVisitor):
 
     def visit_Compare(self, tree):
         assert len(tree.ops) == len(tree.comparators)
-        return self.visit(tree.left) + T('').join(
+        return T('({})').format(self.visit(tree.left) + T('').join(
             [cmpop_code[type(tree.ops[i])] + self.visit(tree.comparators[i])
-             for i in range(len(tree.ops))])
+             for i in range(len(tree.ops))]))
 
     def visit_comprehension(self, tree):
         return (T('for {} in {}').format(self.visit(tree.target), self.visit(tree.iter)) +
