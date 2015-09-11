@@ -571,7 +571,8 @@ class Namespace(ast.NodeVisitor):
         return T('{}[{}]').format(self.visit(tree.value), self.visit(tree.slice))
 
     def visit_TryExcept(self, tree):
-        raise NotImplementedError('Open problem: try-except')
+        # TODO: Don't ignore the except handlers, else, and finally clause.
+        return self.many_to_one(tree.body, after=T('{after}'))
 
     def visit_TryFinally(self, tree):
         raise NotImplementedError('Open problem: try-finally')
