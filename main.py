@@ -47,7 +47,8 @@ def get_init_code(tree, table):
         __y="(lambda f: (lambda x: x(x))(lambda y:"
           " f(lambda: y(y)())))",
         __g=T("globals()"),
-        sys="__import__('sys')")
+        __sys="__import__('sys')",
+        __types="__import__('types')")
 
     return output.close()
 
@@ -180,7 +181,7 @@ class Namespace(ast.NodeVisitor):
                           'None' if target.slice.upper is None else '__upper',
                           '0' if target.slice.lower is None
                               else self.visit(target.slice.lower),
-                          T('{sys}.maxint') if target.slice.upper is None
+                          T('{__sys}.maxint') if target.slice.upper is None
                               else self.visit(target.slice.upper)))]
             else:
                 return [T('{}.__delitem__({})').format(self.visit(target.value),
@@ -289,8 +290,14 @@ class Namespace(ast.NodeVisitor):
         ns = Namespace(next(self.subtables))
         body = ns.many_to_one(tree.body, after=T('{__l}'))
         doc = ast.get_docstring(tree, clean=False)
-        body = provide(body, __l=repr({} if doc is None else {'__doc__': doc}))
-        class_code = T('type({!r}, ({}), {})').format(tree.name, bases, body)
+        body = provide(body, __l="{{'__module__': __name__{}}}".format(
+            '' if doc is None else ", '__doc__': {!r}".format(doc)))
+        if tree.bases:
+            class_code = T("(lambda __bases, __dict: __dict.get('__metaclass__', getattr(__bases[0], '__class__', {__types}.ClassType))({!r}, __bases, __dict))(({}), {})").format(
+                tree.name, bases, body)
+        else:
+            class_code = T("(lambda __dict: __dict.get('__metaclass__', {__types}.ClassType)({!r}, (), __dict))({})").format(
+                tree.name, body)
         class_code = decoration.format(class_code)
         return assignment_component(T('{after}'), self.store_var(tree.name), class_code)
 
@@ -529,7 +536,7 @@ class Namespace(ast.NodeVisitor):
 
     def visit_Raise(self, tree):
         if tree.type is None:
-            return T('([] for [] in []).throw(*{sys}.exc_info())')
+            return T('([] for [] in []).throw(*{__sys}.exc_info())')
         else:
             return T('([] for [] in []).throw({}{}{})').format(
                 self.visit(tree.type),
