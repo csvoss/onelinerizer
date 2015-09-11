@@ -59,7 +59,16 @@ def only_for_parsing():
 
     raise lambda: raise_type, lambda: raise_inst, lambda: raise_tback
 
-    # TODO: try
+    try:
+        lambda: body
+    except lambda: handler_type0 as (lambda: handler_name0).attr:
+        lambda: handler_body0
+    except lambda: handler_type1 as (lambda: handler_name1).attr:
+        lambda: handler_body1
+    else:
+        lambda: orelse_body
+
+    # TODO: finally
 
     assert lambda: assert_test, lambda: assert_msg
 
