@@ -174,15 +174,18 @@ class Namespace(ast.NodeVisitor):
             return [T('delattr({}, {!r})').format(self.visit(target.value), target.attr)]
         elif type(target) is ast.Subscript:
             if type(target.slice) is ast.Slice and target.slice.step is None:
-                return [lambda_function({'__value': self.visit(target.value)}).format(
-                    T("getattr(__value, '__delslice__', lambda __lower, __upper: "
-                      "__value.__delitem__(slice({}, {})))({}, {})").format(
-                          'None' if target.slice.lower is None else '__lower',
-                          'None' if target.slice.upper is None else '__upper',
-                          '0' if target.slice.lower is None
-                              else self.visit(target.slice.lower),
-                          T('{__sys}.maxint') if target.slice.upper is None
-                              else self.visit(target.slice.upper)))]
+                return [T("(lambda o, **d: type('translator', (), {{m: getattr("
+                          "proxy, d[m]) for proxy in [type('proxy', (), {{"
+                          "'__getattribute__': lambda self, name: object."
+                          "__getattribute__(o, name)}})()] for m in d if "
+                          "hasattr(proxy, d[m])}}) if isinstance(o, object) "
+                          "else {__types}.ClassType('translator', (), {{"
+                          "'__getattr__': lambda self, name: getattr(o, "
+                          "d[name])}}))({}, __getitem__='__delitem__', "
+                          "__getslice__='__delslice__', __len__='__len__')"
+                          "()[{}]").format(
+                              self.visit(target.value),
+                              self.visit(target.slice))]
             else:
                 return [T('{}.__delitem__({})').format(self.visit(target.value),
                                                        self.slice_repr(target.slice))]
