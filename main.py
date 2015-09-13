@@ -296,11 +296,13 @@ class Namespace(ast.NodeVisitor):
         body = provide(body, __l="{{'__module__': __name__{}}}".format(
             '' if doc is None else ", '__doc__': {!r}".format(doc)))
         if tree.bases:
-            class_code = T("(lambda __bases, __dict: __dict.get('__metaclass__', getattr(__bases[0], '__class__', {__types}.ClassType))({!r}, __bases, __dict))(({}), {})").format(
-                tree.name, bases, body)
+            class_code = T("(lambda b, d: d.get('__metaclass__', getattr(b[0], "
+                           "'__class__', type(b[0])))({!r}, b, d))(({}), "
+                           "{})").format(tree.name, bases, body)
         else:
-            class_code = T("(lambda __dict: __dict.get('__metaclass__', {__types}.ClassType)({!r}, (), __dict))({})").format(
-                tree.name, body)
+            class_code = T("(lambda d: d.get('__metaclass__', {__g}.get("
+                           "'__metaclass__', {__types}.ClassType))({!r}, (), "
+                           "d))({})").format(tree.name, body)
         class_code = decoration.format(class_code)
         return assignment_component(T('{after}'), self.store_var(tree.name), class_code)
 
