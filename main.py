@@ -248,14 +248,14 @@ class Namespace(ast.NodeVisitor):
         iop = '__i%s__' % iop
         value = self.visit(tree.value)
         return T('(lambda {}: {})({})').format(
-            T(', ').join(target_params + ['__value']),
+            T(', ').join(target_params),
             assignment_component(T('{after}'), target_value,
-                T('(lambda __old: (lambda __ret: __old {} '
+                T('(lambda __old, __value: (lambda __ret: __old {} '
                   '__value if __ret is NotImplemented else __ret)(getattr('
                   '__old, {!r}, lambda other: NotImplemented)(__value)))'
-                  '({})').format(
-                      op, iop, target_value)),
-            T(', ').join(target_args + [value]))
+                  '({}, {})').format(
+                      op, iop, target_value, value)),
+            T(', ').join(target_args))
 
     def visit_BinOp(self, tree):
         return T('({} {} {})').format(self.visit(tree.left), operator_code[type(tree.op)], self.visit(tree.right))
