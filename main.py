@@ -249,10 +249,10 @@ class Namespace(ast.NodeVisitor):
         value = self.visit(tree.value)
         assign = assignment_component(
             T('{after}'), target_value,
-            T('(lambda __old, __value: (lambda __ret: __old {} '
-              '__value if __ret is NotImplemented else __ret)(getattr('
-              '__old, {!r}, lambda other: NotImplemented)(__value)))'
-              '({}, {})').format(
+            T("(lambda o, v: (lambda r: o {} v if r is NotImplemented else r)("
+              "object.__getattribute__(object.__getattribute__(type(o), "
+              "'__dict__').get({!r}, lambda self, other: NotImplemented), "
+              "'__get__')(o, type(o))(v)))({}, {})").format(
                   op, iop, target_value, value))
         if target_params:
             assign = T('(lambda {}: {})({})').format(
