@@ -634,10 +634,6 @@ def to_one_line(original):
     return get_init_code(t, table)
 
 
-# TODO: Use command line arg instead
-DEBUG = True
-
-
 if __name__ == '__main__':
     usage = ['python main.py --help',
              'python main.py [--debug] [infile.py [outfile.py]]',
