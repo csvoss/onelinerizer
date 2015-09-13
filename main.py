@@ -217,7 +217,6 @@ class Namespace(ast.NodeVisitor):
             target_params = ['__target']
             target_args = [self.visit(tree.target.value)]
             target_value = T('__target.{}').format(tree.target.attr)
-            old = T('{__old}')
         elif type(tree.target) is ast.Subscript:
             if type(tree.target.slice) is ast.Slice and tree.target.slice.step is None:
                 target_params = ['__target']
@@ -235,11 +234,10 @@ class Namespace(ast.NodeVisitor):
                 target_params = ['__target', '__slice']
                 target_args = [self.visit(tree.target.value), self.slice_repr(tree.target.slice)]
                 target_value = '__target[__slice]'
-            old = T('{__old}')
         elif type(tree.target) is ast.Name:
             target_params = []
             target_args = []
-            old = target_value = self.store_var(tree.target.id)
+            target_value = self.store_var(tree.target.id)
         else:
             raise SyntaxError('illegal expression for augmented assignment')
 
@@ -251,12 +249,12 @@ class Namespace(ast.NodeVisitor):
         value = self.visit(tree.value)
         return T('(lambda {}: {})({})').format(
             T(', ').join(target_params + ['__value']),
-            assignment_component(T('{after}'), target_value, provide(
-                T('(lambda __ret: {} {} '
+            assignment_component(T('{after}'), target_value,
+                T('(lambda __old: (lambda __ret: __old {} '
                   '__value if __ret is NotImplemented else __ret)(getattr('
-                  '{}, {!r}, lambda other: NotImplemented)(__value))').format(
-                      old, op, old, iop),
-                __old=target_value)),
+                  '__old, {!r}, lambda other: NotImplemented)(__value)))'
+                  '({})').format(
+                      op, iop, target_value)),
             T(', ').join(target_args + [value]))
 
     def visit_BinOp(self, tree):
