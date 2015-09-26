@@ -100,11 +100,21 @@ def assignment_component(after, targets, value):
 
 
 class Namespace(ast.NodeVisitor):
-    def __init__(self, table):
+    def __init__(self, table, private=''):
         self.table = table
         self.subtables = iter(table.get_children())
+        self.private = '_' + table.get_name() if table.get_type() == 'class' \
+                       else private
+
+    def next_child(self):
+        return Namespace(next(self.subtables), private=self.private)
+
+    def mangle(self, name):
+        return self.private + name if name.startswith('__') and \
+            not name.endswith('__') else name
 
     def var(self, name):
+        name = self.mangle(name)
         sym = self.table.lookup(name)
         if sym.is_global() or (self.table.get_type() == 'module' and sym.is_local()):
             return T('{}').format(name)
@@ -116,6 +126,7 @@ class Namespace(ast.NodeVisitor):
             raise SyntaxError('confusing symbol {!r}'.format(name))
 
     def store_var(self, name):
+        name = self.mangle(name)
         sym = self.table.lookup(name)
         if sym.is_global():
             return T('{__g}[{!r}]').format(name)
@@ -127,6 +138,7 @@ class Namespace(ast.NodeVisitor):
             raise SyntaxError('confusing symbol {!r}'.format(name))
 
     def delete_var(self, name):
+        name = self.mangle(name)
         sym = self.table.lookup(name)
         if sym.is_global():
             return T('{__g}.pop({!r})').format(name)
@@ -290,7 +302,7 @@ class Namespace(ast.NodeVisitor):
         decoration = T('{}')
         for decorator in tree.decorator_list:
             decoration = decoration.format(T('{}({})').format(self.visit(decorator), T('{}')))
-        ns = Namespace(next(self.subtables))
+        ns = self.next_child()
         body = ns.many_to_one(tree.body, after=T('{__l}'))
         doc = ast.get_docstring(tree, clean=False)
         body = provide(body, __l="{{'__module__': __name__{}}}".format(
@@ -316,7 +328,7 @@ class Namespace(ast.NodeVisitor):
 
     def comprehension_code(self, generators, wrap):
         iter0 = self.visit(generators[0].iter)
-        ns = Namespace(next(self.subtables))
+        ns = self.next_child()
         return self.close(
             ns,
             wrap(ns, T(' ').join(
@@ -400,7 +412,7 @@ class Namespace(ast.NodeVisitor):
         decoration = T('{}')
         for decorator in tree.decorator_list:
             decoration = decoration.format(T('{}({})').format(self.visit(decorator), T('{}')))
-        ns = Namespace(next(self.subtables))
+        ns = self.next_child()
         body = ns.many_to_one(tree.body)
         if arg_names:
             body = assignment_component(body,
@@ -497,7 +509,7 @@ class Namespace(ast.NodeVisitor):
 
     def visit_Lambda(self, tree):
         args, arg_names = self.visit(tree.args)
-        ns = Namespace(next(self.subtables))
+        ns = self.next_child()
         body = ns.visit(tree.body)
         if arg_names:
             body = assignment_component(body, T(', ').join(ns.store_var(name)
