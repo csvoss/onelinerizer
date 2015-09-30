@@ -186,21 +186,21 @@ class Namespace(ast.NodeVisitor):
             return [T('delattr({}, {!r})').format(self.visit(target.value), target.attr)]
         elif type(target) is ast.Subscript:
             if type(target.slice) is ast.Slice and target.slice.step is None:
-                return [T("(lambda o, **d: type('translator', (), {{m: getattr("
-                          "proxy, d[m]) for proxy in [type('proxy', (), {{"
-                          "'__getattribute__': lambda self, name: object."
-                          "__getattribute__(o, name)}})()] for m in d if "
-                          "hasattr(proxy, d[m])}}) if isinstance(o, object) "
-                          "else {__types}.ClassType('translator', (), {{"
-                          "'__getattr__': lambda self, name: getattr(o, "
-                          "d[name])}}))({}, __getitem__='__delitem__', "
-                          "__getslice__='__delslice__', __len__='__len__')"
-                          "()[{}]").format(
+                return [T("(lambda o, **t: type('translator', (), {{t[m]: "
+                          "staticmethod(object.__getattribute__(d[m], '__get__'"
+                          ")(o, type(o))) for d in [object.__getattribute__("
+                          "type(o), '__dict__')] for m in t if m in d}})())({},"
+                          " __delitem__='__getitem__', __delslice__="
+                          "'__getslice__', __len__='__len__')[{}]").format(
                               self.visit(target.value),
                               self.visit(target.slice))]
             else:
-                return [T('{}.__delitem__({})').format(self.visit(target.value),
-                                                       self.slice_repr(target.slice))]
+                return [T("(lambda o: object.__getattribute__("
+                          "object.__getattribute__(type(o), '__dict__')"
+                          "['__delitem__'], '__get__')(o, type(o)))"
+                          "({})({})").format(
+                              self.visit(target.value),
+                              self.slice_repr(target.slice))]
         elif type(target) is ast.Name:
             return [self.delete_var(target.id)]
         elif type(target) in (ast.List, ast.Tuple):

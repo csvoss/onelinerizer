@@ -98,12 +98,24 @@ def delete(a, s):
     del a[:,]
     del a[::,]
 
+def g(e):
+    def __getattr__(self, name):
+        print '__getattr__', repr(name)
+        if name == '__len__':
+            return lambda: 100
+        if name in e:
+            return e[name].__get__(self)
+        raise AttributeError
+    return {'__getattr__': __getattr__}
+
 for ns in [['__%sitem__'], ['__%sitem__', '__%sslice__']]:
+    e = {n % a: trace(n % a) for a in ['get', 'set', 'del'] for n in ns}
     for meta, d in [
-            (type, {}),
-            (type, {'__len__': lambda self: 100}),
-            (types.ClassType, {'__len__': lambda self: 100})]:
-        a = meta('dummy', (), dict(d, **{n % a: trace(n % a) for a in ['get', 'set', 'del'] for n in ns}))()
+            (type, e),
+            (type, dict(e, __len__=lambda self: 100)),
+            (types.ClassType, dict(e, __len__=lambda self: 100)),
+            (types.ClassType, g(e))]:
+        a = meta('dummy', (), d)()
         for s in [1, -1]:
             get(a, s)
             set(a, s)
