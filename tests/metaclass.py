@@ -8,3 +8,8 @@ class C:
 
 class C(object):
     __metaclass__ = M
+
+__metaclass__ = M
+
+class C:
+     pass
