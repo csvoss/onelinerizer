@@ -229,7 +229,6 @@ class Namespace(ast.NodeVisitor):
             target_params = ['__target']
             target_args = [self.visit(tree.target.value)]
             target_value = T('__target.{}').format(tree.target.attr)
-            old = T('{__old}')
         elif type(tree.target) is ast.Subscript:
             if type(tree.target.slice) is ast.Slice and tree.target.slice.step is None:
                 target_params = ['__target']
@@ -247,11 +246,10 @@ class Namespace(ast.NodeVisitor):
                 target_params = ['__target', '__slice']
                 target_args = [self.visit(tree.target.value), self.slice_repr(tree.target.slice)]
                 target_value = '__target[__slice]'
-            old = T('{__old}')
         elif type(tree.target) is ast.Name:
             target_params = []
             target_args = []
-            old = target_value = self.store_var(tree.target.id)
+            target_value = self.store_var(tree.target.id)
         else:
             raise SyntaxError('illegal expression for augmented assignment')
 
@@ -261,15 +259,19 @@ class Namespace(ast.NodeVisitor):
             iop = iop[len('bit'):]
         iop = '__i%s__' % iop
         value = self.visit(tree.value)
-        return T('(lambda {}: {})({})').format(
-            T(', ').join(target_params + ['__value']),
-            assignment_component(T('{after}'), target_value, provide(
-                T('(lambda __ret: {} {} '
-                  '__value if __ret is NotImplemented else __ret)(getattr('
-                  '{}, {!r}, lambda other: NotImplemented)(__value))').format(
-                      old, op, old, iop),
-                __old=target_value)),
-            T(', ').join(target_args + [value]))
+        assign = assignment_component(
+            T('{after}'), target_value,
+            T("(lambda o, v: (lambda r: o {} v if r is NotImplemented else r)("
+              "object.__getattribute__(object.__getattribute__(type(o), "
+              "'__dict__').get({!r}, lambda self, other: NotImplemented), "
+              "'__get__')(o, type(o))(v)))({}, {})").format(
+                  op, iop, target_value, value))
+        if target_params:
+            assign = T('(lambda {}: {})({})').format(
+                T(', ').join(target_params),
+                assign,
+                T(', ').join(target_args))
+        return assign
 
     def visit_BinOp(self, tree):
         return T('({} {} {})').format(self.visit(tree.left), operator_code[type(tree.op)], self.visit(tree.right))
