@@ -100,11 +100,21 @@ def assignment_component(after, targets, value):
 
 
 class Namespace(ast.NodeVisitor):
-    def __init__(self, table):
+    def __init__(self, table, private=''):
         self.table = table
         self.subtables = iter(table.get_children())
+        self.private = '_' + table.get_name() if table.get_type() == 'class' \
+                       else private
+
+    def next_child(self):
+        return Namespace(next(self.subtables), private=self.private)
+
+    def mangle(self, name):
+        return self.private + name if name.startswith('__') and \
+            not name.endswith('__') else name
 
     def var(self, name):
+        name = self.mangle(name)
         sym = self.table.lookup(name)
         if sym.is_global() or (self.table.get_type() == 'module' and sym.is_local()):
             return T('{}').format(name)
@@ -116,6 +126,7 @@ class Namespace(ast.NodeVisitor):
             raise SyntaxError('confusing symbol {!r}'.format(name))
 
     def store_var(self, name):
+        name = self.mangle(name)
         sym = self.table.lookup(name)
         if sym.is_global():
             return T('{__g}[{!r}]').format(name)
@@ -127,6 +138,7 @@ class Namespace(ast.NodeVisitor):
             raise SyntaxError('confusing symbol {!r}'.format(name))
 
     def delete_var(self, name):
+        name = self.mangle(name)
         sym = self.table.lookup(name)
         if sym.is_global():
             return T('{__g}.pop({!r})').format(name)
@@ -174,21 +186,21 @@ class Namespace(ast.NodeVisitor):
             return [T('delattr({}, {!r})').format(self.visit(target.value), target.attr)]
         elif type(target) is ast.Subscript:
             if type(target.slice) is ast.Slice and target.slice.step is None:
-                return [T("(lambda o, **d: type('translator', (), {{m: getattr("
-                          "proxy, d[m]) for proxy in [type('proxy', (), {{"
-                          "'__getattribute__': lambda self, name: object."
-                          "__getattribute__(o, name)}})()] for m in d if "
-                          "hasattr(proxy, d[m])}}) if isinstance(o, object) "
-                          "else {__types}.ClassType('translator', (), {{"
-                          "'__getattr__': lambda self, name: getattr(o, "
-                          "d[name])}}))({}, __getitem__='__delitem__', "
-                          "__getslice__='__delslice__', __len__='__len__')"
-                          "()[{}]").format(
+                return [T("(lambda o, **t: type('translator', (), {{t[m]: "
+                          "staticmethod(object.__getattribute__(d[m], '__get__'"
+                          ")(o, type(o))) for d in [object.__getattribute__("
+                          "type(o), '__dict__')] for m in t if m in d}})())({},"
+                          " __delitem__='__getitem__', __delslice__="
+                          "'__getslice__', __len__='__len__')[{}]").format(
                               self.visit(target.value),
                               self.visit(target.slice))]
             else:
-                return [T('{}.__delitem__({})').format(self.visit(target.value),
-                                                       self.slice_repr(target.slice))]
+                return [T("(lambda o: object.__getattribute__("
+                          "object.__getattribute__(type(o), '__dict__')"
+                          "['__delitem__'], '__get__')(o, type(o)))"
+                          "({})({})").format(
+                              self.visit(target.value),
+                              self.slice_repr(target.slice))]
         elif type(target) is ast.Name:
             return [self.delete_var(target.id)]
         elif type(target) in (ast.List, ast.Tuple):
@@ -217,7 +229,6 @@ class Namespace(ast.NodeVisitor):
             target_params = ['__target']
             target_args = [self.visit(tree.target.value)]
             target_value = T('__target.{}').format(tree.target.attr)
-            old = T('{__old}')
         elif type(tree.target) is ast.Subscript:
             if type(tree.target.slice) is ast.Slice and tree.target.slice.step is None:
                 target_params = ['__target']
@@ -235,11 +246,10 @@ class Namespace(ast.NodeVisitor):
                 target_params = ['__target', '__slice']
                 target_args = [self.visit(tree.target.value), self.slice_repr(tree.target.slice)]
                 target_value = '__target[__slice]'
-            old = T('{__old}')
         elif type(tree.target) is ast.Name:
             target_params = []
             target_args = []
-            old = target_value = self.store_var(tree.target.id)
+            target_value = self.store_var(tree.target.id)
         else:
             raise SyntaxError('illegal expression for augmented assignment')
 
@@ -249,15 +259,19 @@ class Namespace(ast.NodeVisitor):
             iop = iop[len('bit'):]
         iop = '__i%s__' % iop
         value = self.visit(tree.value)
-        return T('(lambda {}: {})({})').format(
-            T(', ').join(target_params + ['__value']),
-            assignment_component(T('{after}'), target_value, provide(
-                T('(lambda __ret: {} {} '
-                  '__value if __ret is NotImplemented else __ret)(getattr('
-                  '{}, {!r}, lambda other: NotImplemented)(__value))').format(
-                      old, op, old, iop),
-                __old=target_value)),
-            T(', ').join(target_args + [value]))
+        assign = assignment_component(
+            T('{after}'), target_value,
+            T("(lambda o, v: (lambda r: o {} v if r is NotImplemented else r)("
+              "object.__getattribute__(object.__getattribute__(type(o), "
+              "'__dict__').get({!r}, lambda self, other: NotImplemented), "
+              "'__get__')(o, type(o))(v)))({}, {})").format(
+                  op, iop, target_value, value))
+        if target_params:
+            assign = T('(lambda {}: {})({})').format(
+                T(', ').join(target_params),
+                assign,
+                T(', ').join(target_args))
+        return assign
 
     def visit_BinOp(self, tree):
         return T('({} {} {})').format(self.visit(tree.left), operator_code[type(tree.op)], self.visit(tree.right))
@@ -290,17 +304,19 @@ class Namespace(ast.NodeVisitor):
         decoration = T('{}')
         for decorator in tree.decorator_list:
             decoration = decoration.format(T('{}({})').format(self.visit(decorator), T('{}')))
-        ns = Namespace(next(self.subtables))
+        ns = self.next_child()
         body = ns.many_to_one(tree.body, after=T('{__l}'))
         doc = ast.get_docstring(tree, clean=False)
         body = provide(body, __l="{{'__module__': __name__{}}}".format(
             '' if doc is None else ", '__doc__': {!r}".format(doc)))
         if tree.bases:
-            class_code = T("(lambda __bases, __dict: __dict.get('__metaclass__', getattr(__bases[0], '__class__', {__types}.ClassType))({!r}, __bases, __dict))(({}), {})").format(
-                tree.name, bases, body)
+            class_code = T("(lambda b, d: d.get('__metaclass__', getattr(b[0], "
+                           "'__class__', type(b[0])))({!r}, b, d))(({}), "
+                           "{})").format(tree.name, bases, body)
         else:
-            class_code = T("(lambda __dict: __dict.get('__metaclass__', {__types}.ClassType)({!r}, (), __dict))({})").format(
-                tree.name, body)
+            class_code = T("(lambda d: d.get('__metaclass__', {__g}.get("
+                           "'__metaclass__', {__types}.ClassType))({!r}, (), "
+                           "d))({})").format(tree.name, body)
         class_code = decoration.format(class_code)
         return assignment_component(T('{after}'), self.store_var(tree.name), class_code)
 
@@ -316,7 +332,7 @@ class Namespace(ast.NodeVisitor):
 
     def comprehension_code(self, generators, wrap):
         iter0 = self.visit(generators[0].iter)
-        ns = Namespace(next(self.subtables))
+        ns = self.next_child()
         return self.close(
             ns,
             wrap(ns, T(' ').join(
@@ -400,7 +416,7 @@ class Namespace(ast.NodeVisitor):
         decoration = T('{}')
         for decorator in tree.decorator_list:
             decoration = decoration.format(T('{}({})').format(self.visit(decorator), T('{}')))
-        ns = Namespace(next(self.subtables))
+        ns = self.next_child()
         body = ns.many_to_one(tree.body)
         if arg_names:
             body = assignment_component(body,
@@ -497,7 +513,7 @@ class Namespace(ast.NodeVisitor):
 
     def visit_Lambda(self, tree):
         args, arg_names = self.visit(tree.args)
-        ns = Namespace(next(self.subtables))
+        ns = self.next_child()
         body = ns.visit(tree.body)
         if arg_names:
             body = assignment_component(body, T(', ').join(ns.store_var(name)
