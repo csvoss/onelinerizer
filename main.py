@@ -121,7 +121,7 @@ class Namespace(ast.NodeVisitor):
         elif sym.is_local():
             return T('{__l}[{!r}]').format(name)
         elif sym.is_free():
-            return T('{__f}[{!r}]()').format(name)
+            return T('{___f_' + name + '}()').format(name)
         else:
             raise SyntaxError('confusing symbol {!r}'.format(name))
 
@@ -150,15 +150,10 @@ class Namespace(ast.NodeVisitor):
             raise SyntaxError('confusing symbol {!r}'.format(name))
 
     def close(self, ns, local, body, **subs):
-        # Inexplicably, symtable.Class does not provide get_frees().
-        return provide(
-            body,
-            __l=local,
-            __f=T('{{{}}}').format(T(', ').join(
-                T('{!r}: lambda: {}').format(v, self.var(v))
-                for v in ns.table.get_identifiers()
-                if ns.table.lookup(v).is_free())),
-            **subs)
+        if self.table.get_type() == 'function':
+            subs = dict(subs, **{'___f_' + v: T('lambda: {}').format(self.var(v))
+                                 for v in self.table.get_locals()})
+        return provide(body, __l=local, **subs)
 
     def many_to_one(self, trees, after='None'):
         # trees :: [Tree]
