@@ -6,6 +6,8 @@ from main import to_one_line
 
 TEST_DIRECTORY = 'tests'
 
+DEBUG = False
+
 class TestOneLine(unittest.TestCase):
     def runTest(self):
         pass
@@ -21,7 +23,7 @@ def make_test(filename):
             onelined = to_one_line(original)
             self.assertEqual(capture_exec(original),
                              capture_exec(onelined),
-                             msg="Onelined: "+onelined)
+                             msg="\n\nOnelined: "+onelined)
     return new_test
 
 class FakeStdin(object):
@@ -46,7 +48,9 @@ def capture_exec(code_string):
     except Exception as e:
         import traceback
         exc = traceback.format_exc()
-        raise type(e)(code_string + '\n\n' + exc)
+        if DEBUG:
+            old_stdout.write("\nFYI: test threw error %s\n" % str(type(e)(code_string + ', ' + exc)))
+        new_stdout.write("Error thrown.")
     sys.stdout = old_stdout
     sys.stdin = old_stdin
     return new_stdout.getvalue()
