@@ -149,12 +149,15 @@ class Namespace(ast.NodeVisitor):
         else:
             raise SyntaxError('confusing symbol {!r}'.format(name))
 
-    def close(self, ns, body, **subs):
+    def close(self, ns, local, body, **subs):
+        # Inexplicably, symtable.Class does not provide get_frees().
         return provide(
             body,
-            __l='{}',
+            __l=local,
             __f=T('{{{}}}').format(T(', ').join(
-                T('{!r}: lambda: {}').format(v, self.var(v)) for v in ns.table.get_frees())),
+                T('{!r}: lambda: {}').format(v, self.var(v))
+                for v in ns.table.get_identifiers()
+                if ns.table.lookup(v).is_free())),
             **subs)
 
     def many_to_one(self, trees, after='None'):
@@ -307,8 +310,8 @@ class Namespace(ast.NodeVisitor):
         ns = self.next_child()
         body = ns.many_to_one(tree.body, after=T('{__l}'))
         doc = ast.get_docstring(tree, clean=False)
-        body = provide(body, __l="{{'__module__': __name__{}}}".format(
-            '' if doc is None else ", '__doc__': {!r}".format(doc)))
+        body = self.close(ns, "{{'__module__': __name__{}}}".format(
+            '' if doc is None else ", '__doc__': {!r}".format(doc)), body)
         if tree.bases:
             class_code = T("(lambda b, d: d.get('__metaclass__', getattr(b[0], "
                            "'__class__', type(b[0])))({!r}, b, d))(({}), "
@@ -334,7 +337,7 @@ class Namespace(ast.NodeVisitor):
         iter0 = self.visit(generators[0].iter)
         ns = self.next_child()
         return self.close(
-            ns,
+            ns, '{}',
             wrap(ns, T(' ').join(
                 [T('for {} in {__iter}').format(ns.visit(generators[0].target))] +
                 ['if ' + ns.visit(i) for i in generators[0].ifs] +
@@ -422,7 +425,7 @@ class Namespace(ast.NodeVisitor):
             body = assignment_component(body,
                 T(', ').join(ns.var(name) for name in arg_names),
                 T(', ').join(arg_names))
-        body = self.close(ns, body)
+        body = self.close(ns, '{}', body)
         function_code = args + body
         doc = ast.get_docstring(tree, clean=False)
         if tree.decorator_list:
@@ -518,7 +521,7 @@ class Namespace(ast.NodeVisitor):
         if arg_names:
             body = assignment_component(body, T(', ').join(ns.store_var(name)
                 for name in arg_names), T(', ').join(arg_names))
-        body = self.close(ns, body)
+        body = self.close(ns, '{}', body)
         return '(' + args + body + ')'
 
     def visit_List(self, tree):
