@@ -81,6 +81,7 @@ def get_init_code(tree, table):
         __y="(lambda f: (lambda x: x(x))(lambda y:"
           " f(lambda: y(y)())))",
         __g=T("globals()"),
+        __contextlib="__import__('contextlib')",
         __sys="__import__('sys')",
         __types="__import__('types')")
 
@@ -170,7 +171,7 @@ class Namespace(ast.NodeVisitor):
         elif sym.is_local():
             return T('{__l}[{!r}]').format(name)
         elif sym.is_free():
-            return T('{__f}[{!r}]()').format(name)
+            return T('{___f_' + name + '}()').format(name)
         else:
             raise SyntaxError('confusing symbol {!r}'.format(name))
 
@@ -198,13 +199,11 @@ class Namespace(ast.NodeVisitor):
         else:
             raise SyntaxError('confusing symbol {!r}'.format(name))
 
-    def close(self, ns, body, **subs):
-        return provide(
-            body,
-            __l='{}',
-            __f=T('{{{}}}').format(T(', ').join(
-                T('{!r}: lambda: {}').format(v, self.var(v)) for v in ns.table.get_frees())),
-            **subs)
+    def close(self, ns, local, body, **subs):
+        if self.table.get_type() == 'function':
+            subs = dict(subs, **{'___f_' + v: T('lambda: {}').format(self.var(v))
+                                 for v in self.table.get_locals()})
+        return provide(body, __l=local, **subs)
 
     def many_to_one(self, trees, after='None'):
         # trees :: [Tree]
@@ -356,8 +355,8 @@ class Namespace(ast.NodeVisitor):
         ns = self.next_child()
         body = ns.many_to_one(tree.body, after=T('{__l}'))
         doc = ast.get_docstring(tree, clean=False)
-        body = provide(body, __l="{{'__module__': __name__{}}}".format(
-            '' if doc is None else ", '__doc__': {!r}".format(doc)))
+        body = self.close(ns, "{{'__module__': __name__{}}}".format(
+            '' if doc is None else ", '__doc__': {!r}".format(doc)), body)
         if tree.bases:
             class_code = T("(lambda b, d: d.get('__metaclass__', getattr(b[0], "
                            "'__class__', type(b[0])))({!r}, b, d))(({}), "
@@ -383,7 +382,7 @@ class Namespace(ast.NodeVisitor):
         iter0 = self.visit(generators[0].iter)
         ns = self.next_child()
         return self.close(
-            ns,
+            ns, '{}',
             wrap(ns, T(' ').join(
                 [T('for {} in {__iter}').format(ns.visit(generators[0].target))] +
                 ['if ' + ns.visit(i) for i in generators[0].ifs] +
@@ -466,12 +465,12 @@ class Namespace(ast.NodeVisitor):
         for decorator in tree.decorator_list:
             decoration = decoration.format(T('{}({})').format(self.visit(decorator), T('{}')))
         ns = self.next_child()
-        body = ns.many_to_one(tree.body)
+        body = ns.many_to_one(tree.body).format(pre_return='', post_return='')
         if arg_names:
             body = assignment_component(body,
                 T(', ').join(ns.var(name) for name in arg_names),
                 T(', ').join(arg_names))
-        body = self.close(ns, body)
+        body = self.close(ns, '{}', body)
         function_code = args + body
         doc = ast.get_docstring(tree, clean=False)
         if tree.decorator_list:
@@ -567,7 +566,7 @@ class Namespace(ast.NodeVisitor):
         if arg_names:
             body = assignment_component(body, T(', ').join(ns.store_var(name)
                 for name in arg_names), T(', ').join(arg_names))
-        body = self.close(ns, body)
+        body = self.close(ns, '{}', body)
         return '(' + args + body + ')'
 
     def visit_List(self, tree):
@@ -615,7 +614,7 @@ class Namespace(ast.NodeVisitor):
         return T('`{}`').format(self.visit(tree.value))
 
     def visit_Return(self, tree):
-        return self.visit(tree.value)
+        return T('{pre_return}{}{post_return}').format(self.visit(tree.value))
 
     def visit_Set(self, tree):
         assert tree.elts, '{} is a dict'
@@ -639,16 +638,43 @@ class Namespace(ast.NodeVisitor):
         return T('{}[{}]').format(self.visit(tree.value), self.visit(tree.slice))
 
     def visit_TryExcept(self, tree):
-        body = self.many_to_one(tree.body, after=T('{after}'))
-        self.many_to_one(tree.orelse)
+        body = self.many_to_one(
+            tree.body, after=T('(lambda __after: {orelse})')).format(
+                orelse=self.many_to_one(tree.orelse, after='__after()'),
+                pre_return='(lambda ret: lambda after: ret)(',
+                post_return=')')
+        handlers = []
         for handler in tree.handlers:
-            if handler.type is not None:
-                self.visit(handler.type)
+            if handler.type is None:
+                code = T('{body}')
+            else:
+                code = T('issubclass(__exctype, {type}) and {body}').format(
+                    type=self.visit(handler.type))
             if handler.name is not None:
-                self.visit(handler.name)
-            self.many_to_one(handler.body)
-        # TODO: Don't ignore the except handlers, else, and finally clause.
-        return body
+                code = code.format(body=assignment_component(
+                    T('{body}'), self.visit(handler.name), '__value'))
+            handlers.append(code.format(
+                body=assignment_component(
+                    'True',
+                    '__out[0]',
+                    'lambda __after: ' +
+                    self.many_to_one(handler.body, after='__after()'))))
+        return \
+            lambda_function({'__out': '[None]'}).format(
+                lambda_function({
+                    '__ctx': T(
+                        "{__contextlib}.nested(type('except', (), {{"
+                        "'__enter__': lambda self: None, "
+                        "'__exit__': lambda __self, __exctype, __value, __traceback: "
+                        "__exctype is not None and ({handlers})}})(), "
+                        "type('try', (), {{"
+                        "'__enter__': lambda self: None, "
+                        "'__exit__': lambda __self, __exctype, __value, __traceback: "
+                        "{body}}})())").format(
+                            body=assignment_component('False', '__out[0]', body),
+                            handlers=T(' or ').join(handlers))
+                }).format(
+                    T('[__ctx.__enter__(), __ctx.__exit__(None, None, None), __out[0](lambda: {after})][2]')))
 
     def visit_TryFinally(self, tree):
         raise NotImplementedError('Open problem: try-finally')
