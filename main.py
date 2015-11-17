@@ -415,7 +415,7 @@ class Namespace(ast.NodeVisitor):
         for decorator in tree.decorator_list:
             decoration = decoration.format(T('{}({})').format(self.visit(decorator), T('{}')))
         ns = self.next_child()
-        body = ns.many_to_one(tree.body)
+        body = ns.many_to_one(tree.body).format(pre_return='', post_return='')
         if arg_names:
             body = assignment_component(body,
                 T(', ').join(ns.var(name) for name in arg_names),
@@ -564,7 +564,7 @@ class Namespace(ast.NodeVisitor):
         return T('`{}`').format(self.visit(tree.value))
 
     def visit_Return(self, tree):
-        return self.visit(tree.value)
+        return T('{pre_return}{}{post_return}').format(self.visit(tree.value))
 
     def visit_Set(self, tree):
         assert tree.elts, '{} is a dict'
