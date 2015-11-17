@@ -1,7 +1,7 @@
 Oneliner-izer
 =========
 
-[![Build Status](https://travis-ci.org/csvoss/oneliner.svg?branch=master)](https://travis-ci.org/csvoss/oneliner)
+[![Build Status](https://travis-ci.org/csvoss/onelinerizer.svg?branch=master)](https://travis-ci.org/csvoss/onelinerizer)
 
 **Live demo at [onelinepy.herokuapp.com](http://onelinepy.herokuapp.com/)!**
 
