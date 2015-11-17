@@ -1,4 +1,4 @@
-One-liner
+Oneliner-izer
 =========
 
 [![Build Status](https://travis-ci.org/csvoss/oneliner.svg?branch=master)](https://travis-ci.org/csvoss/oneliner)
@@ -13,8 +13,8 @@ Installation and Usage
 ----------------------
 
 ```sh
-$ git clone https://github.com/csvoss/oneliner
-$ cd oneliner
+$ git clone https://github.com/csvoss/onelinerizer
+$ cd onelinerizer
 $ python main.py target_file.py --debug
 $ python target_file_ol.py
 ```
@@ -134,7 +134,7 @@ import sys
 sys.setrecursionlimit(new_limit)
 ```
 
-in your original Python code. (oneliner will not place this command in for you.)
+in your original Python code. (onelinerizer will not place this command in for you.)
 
 
 Not Implemented
