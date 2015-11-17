@@ -143,7 +143,6 @@ Not Implemented
 
 Open Problems
 -------------
-* try/except/finally
 * with
 * yield
 

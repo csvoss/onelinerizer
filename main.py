@@ -677,7 +677,38 @@ class Namespace(ast.NodeVisitor):
                     T('[__ctx.__enter__(), __ctx.__exit__(None, None, None), __out[0](lambda: {after})][2]')))
 
     def visit_TryFinally(self, tree):
-        raise NotImplementedError('Open problem: try-finally')
+        body = self.many_to_one(
+            tree.body, after=T('(lambda after: after())')).format(
+                pre_return=T('(lambda ret: lambda after: ret)({pre_return}'),
+                post_return=T('{post_return})'))
+
+        finalbody = self.many_to_one(tree.finalbody, after=T('{after}'))
+        if 'pre_return' in finalbody.free():
+            finalbody = T('({})(lambda ret: {})').format(
+                finalbody.format(
+                    after='lambda change_ret: False',
+                    pre_return=T('(lambda ret: lambda change_ret: change_ret(ret))({pre_return}'),
+                    post_return=T('{post_return})')),
+                assignment_component('True', '__out[0]', 'lambda after: ret'))
+        else:
+            finalbody = finalbody.format(after='False')
+
+        return \
+            lambda_function({'__out': '[None]'}).format(
+                lambda_function({
+                    '__ctx': T(
+                        "{__contextlib}.nested(type('except', (), {{"
+                        "'__enter__': lambda self: None, "
+                        "'__exit__': lambda __self, __exctype, __value, __traceback: "
+                        "{finalbody}}})(), "
+                        "type('try', (), {{"
+                        "'__enter__': lambda self: None, "
+                        "'__exit__': lambda __self, __exctype, __value, __traceback: "
+                        "{body}}})())").format(
+                            body=assignment_component('False', '__out[0]', body),
+                            finalbody=finalbody)
+                }).format(
+                    T('[__ctx.__enter__(), __ctx.__exit__(None, None, None), __out[0](lambda: {after})][2]')))
 
     def visit_Tuple(self, tree):
         return T('({})').format(T(', ').join(map(self.visit, tree.elts)) +
