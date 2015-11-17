@@ -1,3 +1,15 @@
+"""Convert any Python file into a single line of code.
+
+Usage via the command line:
+
+$ python main.py --help
+    print usages
+$ python main.py infile.py
+    one-line infile.py, put the result in infile.ol.py
+$ python main.py infile.py outfile.py
+    one-line infile.py, put the result in outfile.py
+"""
+
 import argparse
 import ast
 import symtable
@@ -5,18 +17,31 @@ import sys
 from template import T
 
 
-def lambda_function(arguments_to_values, prettyprinted=False):
-    # arguments_to_values :: {argument_i: value_i}
-    # :: string
-    if prettyprinted:
-        raise NotImplementedError
-    else:
-        return T('(lambda {}: {})({})').format(
-            T(', ').join(arguments_to_values.keys()),
-            T('{}'),
-            T(', ').join(arguments_to_values.values()))
+def lambda_function(arguments_to_values):
+    """
+    Arguments:
+        arguments_to_values: {string: string | T} - e.g. {'a': '47'}
+
+    Returns:
+        T - e.g. (lambda a: {})(47)
+    """
+    return T('(lambda {}: {})({})').format(
+        T(', ').join(arguments_to_values.keys()),
+        T('{}'),
+        T(', ').join(arguments_to_values.values()))
 
 def provide(body, **subs):
+    """
+    Provide the variables in subs to the code in `body`, by wrapping
+    `body` in a lambda function if needed.
+
+    Arguments:
+        body: string | T, e.g. '__print(42)'
+        subs: {string: string | T}, e.g. {'__print': 'f'}
+
+    Returns:
+        T - e.g. (lambda __print: __print(42))(f)
+    """
     body = T('{}').format(body)
     needed = set(body.free()).intersection(subs)
     if needed:
@@ -27,12 +52,21 @@ def provide(body, **subs):
 
 
 def get_init_code(tree, table):
-    # Calculate the helper variables that we will need, wrap the output
-    # code in a definition of those variables.
+    """Get one-lined code from `tree` and `table.
 
-    # TODO: Short-circuit to something far simpler if the program has but one
-    # print statement.
+    Calculate the helper variables that we will need, and wrap the output
+    code (computed from `tree`) with definitions of those variables.
 
+    TODO: Short-circuit to something far simpler if the program has only one
+    print statement.
+
+    Arguments:
+        tree: Python AST node
+        table: symtable.symtable
+
+    Returns:
+        string - valid one-line code
+    """
     output = Namespace(table).many_to_one(tree.body)
 
     doc = ast.get_docstring(tree, clean=False)
@@ -95,11 +129,26 @@ cmpop_code = {
 
 
 def assignment_component(after, targets, value):
+    """
+    Assign `targets` to `value` in the code `after`.
+
+    Arguments:
+        after: string, e.g. 'x+42'
+        targets: string, e.g. 'x,y,z'
+        value: string, e.g. '(1,2,3)'
+
+    Returns:
+        T, e.g. T('[x+42 for x,y,z in [((1,2,3))]]')
+    """
+    # Old way:
     # return T('(lambda {}: {})({})').format(targets, after, value)
     return T('[{} for {} in [({})]][0]').format(after, targets, value)
 
 
 class Namespace(ast.NodeVisitor):
+    """
+    AST visitor.
+    """
     def __init__(self, table, private=''):
         self.table = table
         self.subtables = iter(table.get_children())
