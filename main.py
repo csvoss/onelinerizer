@@ -47,6 +47,7 @@ def get_init_code(tree, table):
         __y="(lambda f: (lambda x: x(x))(lambda y:"
           " f(lambda: y(y)())))",
         __g=T("globals()"),
+        __contextlib="__import__('contextlib')",
         __sys="__import__('sys')",
         __types="__import__('types')")
 
@@ -415,7 +416,7 @@ class Namespace(ast.NodeVisitor):
         for decorator in tree.decorator_list:
             decoration = decoration.format(T('{}({})').format(self.visit(decorator), T('{}')))
         ns = self.next_child()
-        body = ns.many_to_one(tree.body)
+        body = ns.many_to_one(tree.body).format(pre_return='', post_return='')
         if arg_names:
             body = assignment_component(body,
                 T(', ').join(ns.var(name) for name in arg_names),
@@ -564,7 +565,7 @@ class Namespace(ast.NodeVisitor):
         return T('`{}`').format(self.visit(tree.value))
 
     def visit_Return(self, tree):
-        return self.visit(tree.value)
+        return T('{pre_return}{}{post_return}').format(self.visit(tree.value))
 
     def visit_Set(self, tree):
         assert tree.elts, '{} is a dict'
@@ -588,16 +589,43 @@ class Namespace(ast.NodeVisitor):
         return T('{}[{}]').format(self.visit(tree.value), self.visit(tree.slice))
 
     def visit_TryExcept(self, tree):
-        body = self.many_to_one(tree.body, after=T('{after}'))
-        self.many_to_one(tree.orelse)
+        body = self.many_to_one(
+            tree.body, after=T('(lambda __after: {orelse})')).format(
+                orelse=self.many_to_one(tree.orelse, after='__after()'),
+                pre_return='(lambda ret: lambda after: ret)(',
+                post_return=')')
+        handlers = []
         for handler in tree.handlers:
-            if handler.type is not None:
-                self.visit(handler.type)
+            if handler.type is None:
+                code = T('{body}')
+            else:
+                code = T('issubclass(__exctype, {type}) and {body}').format(
+                    type=self.visit(handler.type))
             if handler.name is not None:
-                self.visit(handler.name)
-            self.many_to_one(handler.body)
-        # TODO: Don't ignore the except handlers, else, and finally clause.
-        return body
+                code = code.format(body=assignment_component(
+                    T('{body}'), self.visit(handler.name), '__value'))
+            handlers.append(code.format(
+                body=assignment_component(
+                    'True',
+                    '__out[0]',
+                    'lambda __after: ' +
+                    self.many_to_one(handler.body, after='__after()'))))
+        return \
+            lambda_function({'__out': '[None]'}).format(
+                lambda_function({
+                    '__ctx': T(
+                        "{__contextlib}.nested(type('except', (), {{"
+                        "'__enter__': lambda self: None, "
+                        "'__exit__': lambda __self, __exctype, __value, __traceback: "
+                        "__exctype is not None and ({handlers})}})(), "
+                        "type('try', (), {{"
+                        "'__enter__': lambda self: None, "
+                        "'__exit__': lambda __self, __exctype, __value, __traceback: "
+                        "{body}}})())").format(
+                            body=assignment_component('False', '__out[0]', body),
+                            handlers=T(' or ').join(handlers))
+                }).format(
+                    T('[__ctx.__enter__(), __ctx.__exit__(None, None, None), __out[0](lambda: {after})][2]')))
 
     def visit_TryFinally(self, tree):
         raise NotImplementedError('Open problem: try-finally')
