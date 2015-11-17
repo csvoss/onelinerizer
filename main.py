@@ -592,8 +592,8 @@ class Namespace(ast.NodeVisitor):
         body = self.many_to_one(
             tree.body, after=T('(lambda __after: {orelse})')).format(
                 orelse=self.many_to_one(tree.orelse, after='__after()'),
-                pre_return='(lambda ret: lambda after: ret)(',
-                post_return=')')
+                pre_return=T('(lambda ret: lambda after: ret)({pre_return}'),
+                post_return=T('{post_return})'))
         handlers = []
         for handler in tree.handlers:
             if handler.type is None:
