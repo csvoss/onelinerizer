@@ -165,7 +165,10 @@ class Namespace(ast.NodeVisitor):
 
     def var(self, name):
         name = self.mangle(name)
-        sym = self.table.lookup(name)
+        try:
+            sym = self.table.lookup(name)
+        except KeyError:
+            return name
         if sym.is_global() or (self.table.get_type() == 'module' and sym.is_local()):
             return T('{}').format(name)
         elif sym.is_local():
@@ -177,7 +180,10 @@ class Namespace(ast.NodeVisitor):
 
     def store_var(self, name):
         name = self.mangle(name)
-        sym = self.table.lookup(name)
+        try:
+            sym = self.table.lookup(name)
+        except KeyError:
+            return name
         if sym.is_global():
             return T('{__g}[{!r}]').format(name)
         elif sym.is_local():
@@ -727,7 +733,129 @@ class Namespace(ast.NodeVisitor):
                 test, orelse))
 
     def visit_With(self, tree):
-        raise NotImplementedError('Open problem: with')
+
+        # Rewrite with-blocks as try-except statements as follows:
+        # with <expr> as <name>
+        #    <block>
+        # ----------------------
+        # __anonymous = <expr>
+        # bar = __anonymous.__enter__()
+        # try:
+        #     <block>
+        # except:
+        #     if __anonymous.__exit__(*sys.exc_info()):
+        #         raise
+        # else:
+        #     __anonymous.__exit__(None, None, None)
+        if tree.optional_vars is not None:
+            ctx_bind_name = tree.optional_vars.id
+        else:
+            ctx_bind_name = '__anonymous__enter__result'
+
+        ctx_manager_name = '__anonymous'
+
+        manager_assign = ast.Assign(
+            targets=[ast.Name(id=ctx_manager_name, ctx=ast.Store())],
+            value=tree.context_expr,
+        )
+        context_expr_assign = ast.Assign(
+            targets=[ast.Name(id=ctx_bind_name, ctx=ast.Store())],
+            value=ast.Call(
+                func=ast.Attribute(
+                    value=ast.Name(id=ctx_manager_name, ctx=ast.Store()),
+                    attr='__enter__',
+                    ctx=ast.Load(),
+                ),
+                args=[],
+                keywords=[],
+                starargs=None,
+                kwargs=None,
+            )
+        )
+        # Rewrite the with-block body as:
+        # try:
+        # <body>
+        # except:
+        #     if not <ctx_bind_name>.__exit__(*sys.exc_info()):
+        #         raise
+        sys_module = ast.Call(
+            func=ast.Name(id='__import__', ctx=ast.Load()),
+            args=[
+                ast.Str(s='sys'),
+            ],
+            keywords=[],
+            starargs=None,
+            kwargs=None,
+        )
+        none_node = ast.Name(id='None', ctx=ast.Load())
+
+        block = ast.TryExcept(
+            body=tree.body,
+            handlers=[
+                ast.ExceptHandler(
+                    type=None,
+                    name=None,
+                    body=[
+                        ast.If(
+                            test=ast.UnaryOp(
+                                op=ast.Not(),
+                                operand=ast.Call(
+                                    func=ast.Attribute(
+                                        value=ast.Name(
+                                            id=ctx_manager_name,
+                                            ctx=ast.Load(),
+                                        ),
+                                        attr='__exit__',
+                                        ctx=ast.Load(),
+                                    ),
+                                    args=[],
+                                    keywords=[],
+                                    starargs=ast.Call(
+                                        func=ast.Attribute(
+                                            value=sys_module,
+                                            attr='exc_info',
+                                            ctx=ast.Load(),
+                                        ),
+                                        args=[],
+                                        keywords=[],
+                                        starargs=None,
+                                        kwargs=None,
+                                    ),
+                                    kwargs=None,
+                                ),
+                            ),
+                            body=[
+                                ast.Raise(
+                                    type=None,
+                                    inst=None,
+                                    tback=None,
+                                ),
+                            ],
+                            orelse=[],
+                        ),
+                    ],
+                ),
+            ],
+            orelse=[
+                ast.Expr(
+                    value=ast.Call(
+                        func=ast.Attribute(
+                            value=ast.Name(
+                                id=ctx_manager_name,
+                                ctx=ast.Load(),
+                            ),
+                            attr='__exit__',
+                            ctx=ast.Load(),
+                        ),
+                        args=[none_node, none_node, none_node],
+                        keywords=[],
+                        starargs=None,
+                        kwargs=None,
+                    ),
+                ),
+            ],
+        )
+        return self.many_to_one([manager_assign, context_expr_assign, block])
 
     def visit_Yield(self, tree):
         raise NotImplementedError('Open problem: yield')
