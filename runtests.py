@@ -1,5 +1,6 @@
 import unittest
 import os
+import random
 import sys
 from StringIO import StringIO
 from main import to_one_line
@@ -36,7 +37,7 @@ class FakeStdin(object):
 
 def capture_exec(code_string):
     """Run the code with FakeStdin as stdin, return its stdout."""
-    ## TODO: Seed the RNG.
+    random.seed(4)  # for RFC 1149.5 compliance
     new_stdout = StringIO()
     old_stdout = sys.stdout
     old_stdin = sys.stdin
