@@ -302,19 +302,13 @@ class Namespace(ast.NodeVisitor):
         else:
             raise SyntaxError('illegal expression for augmented assignment')
 
-        op = operator_code[type(tree.op)]
         iop = type(tree.op).__name__.lower()
         if iop.startswith('bit'):
             iop = iop[len('bit'):]
-        iop = '__i%s__' % iop
         value = self.visit(tree.value)
         assign = assignment_component(
             T('{after}'), target_value,
-            T("(lambda o, v: (lambda r: o {} v if r is NotImplemented else r)("
-              "object.__getattribute__(object.__getattribute__(type(o), "
-              "'__dict__').get({!r}, lambda self, other: NotImplemented), "
-              "'__get__')(o, type(o))(v)))({}, {})").format(
-                  op, iop, target_value, value))
+            T("{__operator}.i{}({}, {})").format(iop, target_value, value))
         if target_params:
             assign = T('(lambda {}: {})({})').format(
                 T(', ').join(target_params),
