@@ -81,6 +81,7 @@ def get_init_code(tree, table):
           " f(lambda: y(y)())))",
         __g=T("globals()"),
         __contextlib="__import__('contextlib', level=0)",
+        __operator="__import__('operator', level=0)",
         __sys="__import__('sys', level=0)",
         __types="__import__('types', level=0)")
 
@@ -246,12 +247,9 @@ class Namespace(ast.NodeVisitor):
                               self.visit(target.value),
                               self.visit(target.slice))]
             else:
-                return [T("(lambda o: object.__getattribute__("
-                          "object.__getattribute__(type(o), '__dict__')"
-                          "['__delitem__'], '__get__')(o, type(o)))"
-                          "({})({})").format(
-                              self.visit(target.value),
-                              self.slice_repr(target.slice))]
+                return [T("{__operator}.delitem({}, {})").format(
+                    self.visit(target.value),
+                    self.slice_repr(target.slice))]
         elif type(target) is ast.Name:
             return [self.delete_var(target.id)]
         elif type(target) in (ast.List, ast.Tuple):
