@@ -14,6 +14,7 @@ import argparse
 import ast
 import symtable
 import sys
+import traceback
 from template import T
 
 
@@ -805,7 +806,7 @@ if __name__ == '__main__':
         try:
             exec(original, scope)
         except Exception as e:
-            print e
+            traceback.print_exc(e)
         print '--- ONELINED ---------------------------------'
         print onelined
         print '----------------------------------------------'
@@ -813,4 +814,4 @@ if __name__ == '__main__':
         try:
             exec(onelined, scope)
         except Exception as e:
-            print e
+            traceback.print_exc(e)
