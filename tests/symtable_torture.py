@@ -68,7 +68,10 @@ def only_for_parsing():
     else:
         lambda: orelse_body
 
-    # TODO: finally
+    try:
+        lambda: body
+    finally:
+        lambda: finalbody
 
     assert lambda: assert_test, lambda: assert_msg
 
