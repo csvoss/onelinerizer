@@ -657,8 +657,9 @@ class Namespace(ast.NodeVisitor):
                 body=assignment_component(
                     'True',
                     '__out[0]',
-                    'lambda __after: ' +
-                    self.many_to_one(handler.body, after='__after()'))))
+                    self.many_to_one(handler.body, after='lambda after: after()').format(
+                        pre_return=T('(lambda ret: lambda after: ret)({pre_return}'),
+                        post_return=T('{post_return})')))))
         return \
             lambda_function({'__out': '[None]'}).format(
                 lambda_function({
