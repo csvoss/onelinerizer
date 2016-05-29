@@ -77,8 +77,6 @@ def get_init_code(tree, table):
     output = provide(
         output.format(__l=T('{__g}')),
         __print=T("__import__('__builtin__').__dict__['print']"),
-        __exec="__import__('trace').Trace(count=False,"
-               " trace=False).runctx",
         __y="(lambda f: (lambda x: x(x))(lambda y:"
           " f(lambda: y(y)())))",
         __g=T("globals()"),
@@ -167,8 +165,10 @@ class Namespace(ast.NodeVisitor):
     def var(self, name):
         name = self.mangle(name)
         sym = self.table.lookup(name)
-        if sym.is_global() or (self.table.get_type() == 'module' and sym.is_local()):
+        if self.table.get_type() == 'module' or (sym.is_global() and self.table.is_optimized()) or name == 'None':
             return T('{}').format(name)
+        elif sym.is_global():
+            return T('({__l}[{!r}] if {!r} in __l else {})').format(name, name, name)
         elif sym.is_local():
             return T('{__l}[{!r}]').format(name)
         elif sym.is_free():
@@ -419,17 +419,36 @@ class Namespace(ast.NodeVisitor):
 
     def visit_Exec(self, tree):
         body = self.visit(tree.body)
-        if tree.globals is None:
-            exec_code = T('{__exec}({}, {__g}, {__l})').format(body)
+        if tree.globals is None and self.table.get_type() == 'module':
+            exec_code = T(
+                "eval(compile({}, '<string>', 'exec'), "
+                "None, {__l})").format(body)
+        elif tree.globals is None:
+            exec_code = T(
+                "(lambda b, c: (eval(compile(b, '<string>', 'exec'), "
+                "None, c), {__l}.update(c)))({}, {__l}.copy())").format(body)
+        elif tree.locals is None and self.table.get_type() == 'module':
+            exec_code = T(
+                "(lambda b, g: eval(compile(b, '<string>', 'exec'), g, "
+                "{__l} if g is None else g))({}, {})").format(
+                    body, self.visit(tree.globals))
         elif tree.locals is None:
             exec_code = T(
-                '(lambda b, g: {__exec}(b, {__g} if g is None else g, '
-                '{__l} if g is None else g))({}, {})').format(
+                "(lambda b, g, c: (eval(compile(b, '<string>', 'exec'), g, "
+                "c if g is None else g), "
+                "{__l}.update(c)))({}, {}, {__l}.copy())").format(
                     body, self.visit(tree.globals))
+        elif self.table.get_type() == 'module':
+            exec_code = T(
+                "(lambda b, g, l: eval(compile(b, '<string>', 'exec'), g, "
+                "({__l} if g is None else g) if l is None "
+                "else l))({}, {}, {})").format(
+                    body, self.visit(tree.globals), self.visit(tree.locals))
         else:
             exec_code = T(
-                '(lambda b, g, l: {__exec}(b, {__g} if g is None else g, '
-                '({__l} if g is None else g) if l is None else l))({}, {}, {})').format(
+                "(lambda b, g, l, c: (eval(compile(b, '<string>', 'exec'), g, "
+                "(c if g is None else g) if l is None else l), "
+                "{__l}.update(c)))({}, {}, {}, {__l}.copy())").format(
                     body, self.visit(tree.globals), self.visit(tree.locals))
         return T('({}, {after})[1]').format(exec_code)
 
