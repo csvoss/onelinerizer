@@ -77,8 +77,6 @@ def get_init_code(tree, table):
     output = provide(
         output.format(__l=T('{__g}')),
         __print=T("__import__('__builtin__').__dict__['print']"),
-        __exec="__import__('trace').Trace(count=False,"
-               " trace=False).runctx",
         __y="(lambda f: (lambda x: x(x))(lambda y:"
           " f(lambda: y(y)())))",
         __g=T("globals()"),
@@ -422,16 +420,19 @@ class Namespace(ast.NodeVisitor):
     def visit_Exec(self, tree):
         body = self.visit(tree.body)
         if tree.globals is None:
-            exec_code = T('{__exec}({}, {__g}, {__l})').format(body)
+            exec_code = T(
+                "eval(compile({}, '<string>', 'exec'), "
+                "None, {__l})").format(body)
         elif tree.locals is None:
             exec_code = T(
-                '(lambda b, g: {__exec}(b, {__g} if g is None else g, '
-                '{__l} if g is None else g))({}, {})').format(
+                "(lambda b, g: eval(compile(b, '<string>', 'exec'), g, "
+                "{__l} if g is None else g))({}, {})").format(
                     body, self.visit(tree.globals))
         else:
             exec_code = T(
-                '(lambda b, g, l: {__exec}(b, {__g} if g is None else g, '
-                '({__l} if g is None else g) if l is None else l))({}, {}, {})').format(
+                "(lambda b, g, l: eval(compile(b, '<string>', 'exec'), g, "
+                "({__l} if g is None else g) if l is None "
+                "else l))({}, {}, {})").format(
                     body, self.visit(tree.globals), self.visit(tree.locals))
         return T('({}, {after})[1]').format(exec_code)
 
