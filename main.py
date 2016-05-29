@@ -419,20 +419,36 @@ class Namespace(ast.NodeVisitor):
 
     def visit_Exec(self, tree):
         body = self.visit(tree.body)
-        if tree.globals is None:
+        if tree.globals is None and self.table.get_type() == 'module':
             exec_code = T(
                 "eval(compile({}, '<string>', 'exec'), "
                 "None, {__l})").format(body)
-        elif tree.locals is None:
+        elif tree.globals is None:
+            exec_code = T(
+                "(lambda b, c: (eval(compile(b, '<string>', 'exec'), "
+                "None, c), {__l}.update(c)))({}, {__l}.copy())").format(body)
+        elif tree.locals is None and self.table.get_type() == 'module':
             exec_code = T(
                 "(lambda b, g: eval(compile(b, '<string>', 'exec'), g, "
                 "{__l} if g is None else g))({}, {})").format(
                     body, self.visit(tree.globals))
-        else:
+        elif tree.locals is None:
+            exec_code = T(
+                "(lambda b, g, c: (eval(compile(b, '<string>', 'exec'), g, "
+                "c if g is None else g), "
+                "{__l}.update(c)))({}, {}, {__l}.copy())").format(
+                    body, self.visit(tree.globals))
+        elif self.table.get_type() == 'module':
             exec_code = T(
                 "(lambda b, g, l: eval(compile(b, '<string>', 'exec'), g, "
                 "({__l} if g is None else g) if l is None "
                 "else l))({}, {}, {})").format(
+                    body, self.visit(tree.globals), self.visit(tree.locals))
+        else:
+            exec_code = T(
+                "(lambda b, g, l, c: (eval(compile(b, '<string>', 'exec'), g, "
+                "(c if g is None else g) if l is None else l), "
+                "{__l}.update(c)))({}, {}, {}, {__l}.copy())").format(
                     body, self.visit(tree.globals), self.visit(tree.locals))
         return T('({}, {after})[1]').format(exec_code)
 
