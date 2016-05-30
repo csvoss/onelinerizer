@@ -149,6 +149,8 @@ Open Problems
 
 Further Reading
 ---------------
+* [Lambda calculus](https://en.wikipedia.org/wiki/Lambda_calculus)
+* [Fixed-point combinator](https://en.wikipedia.org/wiki/Fixed-point_combinator)
 * [StackOverflow](http://stackoverflow.com/questions/2573135/python-progression-path-from-apprentice-to-guru/2576240#2576240) post about how functional programming helps with Python mastery
 * [On writing Python one-liners](http://blog.sigfpe.com/2008/09/on-writing-python-one-liners.html) - a similar idea
 * Shout-out to the author of [this StackOverflow post](http://stackoverflow.com/questions/11089808/raising-and-catching-exceptions-in-an-expression-in-python-3), who seems to have worked on a very similar project
