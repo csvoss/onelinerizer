@@ -105,9 +105,9 @@ Analysis
 
 *O(n)*. No code is ever duplicated, so the one-lined code produced is linear in the size of the input code.
 
-### Time
+### Runtime of one-lined code
 
-I'm guessing it's slower, but no more than linearly so; I have yet to analyze this.
+I have no reason to believe the resulting code, however absurd, is more than a constant factor slower than the original code. Since while loops, etc. are implemented using recursive function calls, causing more overhead for setting up those function calls, the constant factor is likely to be somewhat bad.
 
 ### Tips
 
