@@ -3,11 +3,15 @@ Oneliner-izer
 
 [![Build Status](https://travis-ci.org/csvoss/onelinerizer.svg?branch=master)](https://travis-ci.org/csvoss/onelinerizer)
 
-**Live demo at [onelinepy.herokuapp.com](http://onelinepy.herokuapp.com/)!**
 
 Convert any Python file into a single line of code which has the same functionality.
 
 No newlines allowed. No semicolons allowed, either.
+
+**Live demo at [onelinepy.herokuapp.com](http://onelinepy.herokuapp.com/)!**
+
+[Presentation at PyCon 2016](https://www.youtube.com/watch?v=DsUxuz_Rt8g), and [slide deck](https://speakerdeck.com/pycon2016/chelsea-voss-oneliner-izer-an-exercise-in-constrained-coding).
+
 
 Installation and Usage
 ----------------------
