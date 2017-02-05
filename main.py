@@ -634,7 +634,8 @@ class Namespace(ast.NodeVisitor):
         return T('`{}`').format(self.visit(tree.value))
 
     def visit_Return(self, tree):
-        return T('{pre_return}{}{post_return}').format(self.visit(tree.value))
+        return T('{pre_return}{}{post_return}').format(
+            'None' if tree.value is None else self.visit(tree.value))
 
     def visit_Set(self, tree):
         assert tree.elts, '{} is a dict'

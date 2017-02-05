@@ -3,11 +3,15 @@ Oneliner-izer
 
 [![Build Status](https://travis-ci.org/csvoss/onelinerizer.svg?branch=master)](https://travis-ci.org/csvoss/onelinerizer)
 
-**Live demo at [onelinepy.herokuapp.com](http://onelinepy.herokuapp.com/)!**
 
 Convert any Python file into a single line of code which has the same functionality.
 
 No newlines allowed. No semicolons allowed, either.
+
+**Live demo at [onelinepy.herokuapp.com](http://onelinepy.herokuapp.com/)!**
+
+[Presentation at PyCon 2016](https://www.youtube.com/watch?v=DsUxuz_Rt8g), and [slide deck](https://speakerdeck.com/pycon2016/chelsea-voss-oneliner-izer-an-exercise-in-constrained-coding).
+
 
 Installation and Usage
 ----------------------
@@ -105,9 +109,9 @@ Analysis
 
 *O(n)*. No code is ever duplicated, so the one-lined code produced is linear in the size of the input code.
 
-### Time
+### Runtime of one-lined code
 
-I'm guessing it's slower, but no more than linearly so; I have yet to analyze this.
+I have no reason to believe the resulting code, however absurd, is more than a constant factor slower than the original code. Since while loops, etc. are implemented using recursive function calls, causing more overhead for setting up those function calls, the constant factor is likely to be somewhat bad.
 
 ### Tips
 
@@ -149,6 +153,8 @@ Open Problems
 
 Further Reading
 ---------------
+* [Lambda calculus](https://en.wikipedia.org/wiki/Lambda_calculus)
+* [Fixed-point combinator](https://en.wikipedia.org/wiki/Fixed-point_combinator)
 * [StackOverflow](http://stackoverflow.com/questions/2573135/python-progression-path-from-apprentice-to-guru/2576240#2576240) post about how functional programming helps with Python mastery
 * [On writing Python one-liners](http://blog.sigfpe.com/2008/09/on-writing-python-one-liners.html) - a similar idea
 * Shout-out to the author of [this StackOverflow post](http://stackoverflow.com/questions/11089808/raising-and-catching-exceptions-in-an-expression-in-python-3), who seems to have worked on a very similar project
