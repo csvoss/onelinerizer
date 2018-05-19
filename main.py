@@ -76,13 +76,13 @@ def get_init_code(tree, table):
 
     output = provide(
         output.format(__l=T('{__g}')),
-        __print=T("__import__('__builtin__').__dict__['print']"),
+        __print=T("__import__('__builtin__', level=0).__dict__['print']"),
         __y="(lambda f: (lambda x: x(x))(lambda y:"
           " f(lambda: y(y)())))",
         __g=T("globals()"),
-        __contextlib="__import__('contextlib')",
-        __sys="__import__('sys')",
-        __types="__import__('types')")
+        __contextlib="__import__('contextlib', level=0)",
+        __sys="__import__('sys', level=0)",
+        __types="__import__('types', level=0)")
 
     return output.close()
 
@@ -551,15 +551,17 @@ class Namespace(ast.NodeVisitor):
 
     def visit_Import(self, tree):
         after = T('{after}')
+        level_arg = ', level=0' if 'absolute_import' in self.futures else ''
         for alias in tree.names:
             ids = alias.name.split('.')
             if alias.asname is None:
                 after = assignment_component(after, self.store_var(ids[0]),
-                    T('__import__({!r}, {__g}, {__l})').format(alias.name))
+                    T('__import__({!r}, {__g}, {__l}{})').format(
+                        alias.name, level_arg))
             else:
                 after = assignment_component(after, self.store_var(alias.asname),
-                    T('.').join([T('__import__({!r}, {__g}, {__l})').format(
-                        alias.name)] + ids[1:]))
+                    T('.').join([T('__import__({!r}, {__g}, {__l}{})').format(
+                        alias.name, level_arg)] + ids[1:]))
         return after
 
     def visit_ImportFrom(self, tree):
