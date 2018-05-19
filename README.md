@@ -13,14 +13,26 @@ No newlines allowed. No semicolons allowed, either.
 [Presentation at PyCon 2016](https://www.youtube.com/watch?v=DsUxuz_Rt8g), and [slide deck](https://speakerdeck.com/pycon2016/chelsea-voss-oneliner-izer-an-exercise-in-constrained-coding).
 
 
-Installation and Usage
-----------------------
+User Installation and Usage
+---
+
+Install via `pip` from PyPI:
 
 ```sh
-$ git clone https://github.com/csvoss/onelinerizer
-$ cd onelinerizer
-$ python main.py target_file.py --debug
-$ python target_file_ol.py
+$ pip install onelinerizer
+```
+
+Use either the command line function or the Python module:
+
+```sh
+$ echo "def f(x):\n    print x\nf(4)" > sandbox.py
+$ onelinerizer sandbox.py --debug
+$ onelinerizer sandbox_ol.py
+```
+
+```python
+from onelinerizer import onelinerize
+onelinerize("def f(x):\n    print x\nf(4)")
 ```
 
 Examples
@@ -150,6 +162,19 @@ Open Problems
 * with
 * yield
 
+Developer Installation and Testing
+---
+```sh
+$ git clone https://github.com/csvoss/onelinerizer
+$ cd onelinerizer
+$ python -m onelinerizer .setup.py setup.py
+$ python setup.py test
+```
+
+To install the local module:
+```sh
+$ pip install .
+```
 
 Further Reading
 ---------------
