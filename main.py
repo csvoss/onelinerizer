@@ -154,6 +154,7 @@ class Namespace(ast.NodeVisitor):
         self.subtables = iter(table.get_children())
         self.private = '_' + table.get_name() if table.get_type() == 'class' \
                        else private
+        self.futures = set()
 
     def next_child(self):
         return Namespace(next(self.subtables), private=self.private)
@@ -562,13 +563,40 @@ class Namespace(ast.NodeVisitor):
         return after
 
     def visit_ImportFrom(self, tree):
+        body = assignment_component(
+            T('{after}'),
+            T(', ').join(self.store_var(alias.name if alias.asname is None
+                                        else alias.asname) for alias in tree.names),
+            T(', ').join('__mod.' + alias.name for alias in tree.names))
+        if tree.module == '__future__':
+            self.futures |= set(alias.name for alias in tree.names)
+            body = T(
+                '(lambda __f: type(__f)(type(__f.func_code)('
+                '__f.func_code.co_argcount, '
+                '__f.func_code.co_nlocals, '
+                '__f.func_code.co_stacksize, '
+                '__f.func_code.co_flags{}, '
+                '__f.func_code.co_code, '
+                '__f.func_code.co_consts, '
+                '__f.func_code.co_names, '
+                '__f.func_code.co_varnames, '
+                '__f.func_code.co_filename, '
+                '__f.func_code.co_name, '
+                '__f.func_code.co_firstlineno, '
+                '__f.func_code.co_lnotab, '
+                '__f.func_code.co_freevars, '
+                '__f.func_code.co_cellvars), '
+                '__f.func_globals, '
+                '__f.func_name, '
+                '__f.func_defaults, '
+                '__f.func_closure)())(lambda: {})'
+            ).format(
+                ''.join(' | __mod.' + alias.name + '.compiler_flag'
+                        for alias in tree.names),
+                body)
         return T('(lambda __mod: {})(__import__({!r}, {__g}, {__l},'
                  ' {!r}, {!r}))').format(
-            assignment_component(
-                T('{after}'),
-                T(', ').join(self.store_var(alias.name if alias.asname is None
-                                            else alias.asname) for alias in tree.names),
-                T(', ').join('__mod.' + alias.name for alias in tree.names)),
+            body,
             '' if tree.module is None else tree.module,
             tuple(alias.name for alias in tree.names),
             tree.level)
