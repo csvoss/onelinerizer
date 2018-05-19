@@ -759,7 +759,7 @@ class Namespace(ast.NodeVisitor):
 
 
 # The entry point for everything.
-def to_one_line(original):
+def onelinerize(original):
     # original :: string
     # :: string
     t = ast.parse(original)
@@ -808,12 +808,12 @@ if __name__ == '__main__':
         infile = open(args.infile)
         original = infile.read().strip()
         infile.close()
-    onelined = to_one_line(original)
+    onelinerized = onelinerize(original)
     if outfilename is None:
-        print onelined
+        print onelinerized
     else:
         outfi = open(outfilename, 'w')
-        outfi.write(onelined + '\n')
+        outfi.write(onelinerized + '\n')
         outfi.close()
 
     if args.debug:
@@ -828,11 +828,11 @@ if __name__ == '__main__':
             exec(original, scope)
         except Exception as e:
             traceback.print_exc(e)
-        print '--- ONELINED ---------------------------------'
-        print onelined
+        print '--- ONELINERIZED -----------------------------'
+        print onelinerized
         print '----------------------------------------------'
         scope = {}
         try:
-            exec(onelined, scope)
+            exec(onelinerized, scope)
         except Exception as e:
             traceback.print_exc(e)

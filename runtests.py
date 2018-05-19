@@ -3,7 +3,7 @@ import os
 import random
 import sys
 from StringIO import StringIO
-from main import to_one_line
+from main import onelinerize
 
 TEST_DIRECTORY = 'tests'
 
@@ -14,17 +14,17 @@ class TestOneLine(unittest.TestCase):
         pass
 
 def make_test(filename):
-    """Return a function that verifies that the file and its onelined version
-    both output the same."""
+    """Return a function that verifies that the file and its onelinerized
+    version both output the same."""
 
     def new_test(self):
         with open(filename, 'r') as fi:
             self.longMessage = True
             original = fi.read().strip()
-            onelined = to_one_line(original)
+            onelinerized = onelinerize(original)
             self.assertEqual(capture_exec(original),
-                             capture_exec(onelined),
-                             msg="\n\nOnelined: "+onelined)
+                             capture_exec(onelinerized),
+                             msg="\n\nOnelined: " + onelinerized)
     return new_test
 
 class FakeStdin(object):
@@ -56,7 +56,7 @@ def capture_exec(code_string):
     sys.stdin = old_stdin
     return new_stdout.getvalue()
 
-## Monkey-patch 
+# Monkey-patch
 for subdir, dirs, files in os.walk(TEST_DIRECTORY):
     for filename in files:
         root, ext = os.path.splitext(filename)
@@ -67,4 +67,3 @@ for subdir, dirs, files in os.walk(TEST_DIRECTORY):
 
 if __name__ == '__main__':
     unittest.main()
-
