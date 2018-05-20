@@ -1,0 +1,1 @@
+from .onelinerizer import onelinerize

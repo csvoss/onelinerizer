@@ -1,2 +1,6 @@
 *.pyc
 stocks.csv
+*.egg-info
+build/
+dist/
+.ve

@@ -1,4 +1,4 @@
 language: python
 python:
   - "2.7"
-script: python runtests.py
+script: python setup.py test

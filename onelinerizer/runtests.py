@@ -3,7 +3,8 @@ import os
 import random
 import sys
 from StringIO import StringIO
-from main import onelinerize
+
+from .onelinerizer import onelinerize
 
 TEST_DIRECTORY = 'tests'
 
