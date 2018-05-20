@@ -167,9 +167,10 @@ class Namespace(ast.NodeVisitor):
         name = self.mangle(name)
         sym = self.table.lookup(name)
         if self.table.get_type() == 'module' or (sym.is_global() and self.table.is_optimized()) or name == 'None':
-            return T('{}').format(name)
+            return T('{__print}') if name == 'print' else T('{}').format(name)
         elif sym.is_global():
-            return T('({__l}[{!r}] if {!r} in __l else {})').format(name, name, name)
+            return T('({__l}[{!r}] if {!r} in __l else {})').format(
+                name, name, T('{__print}') if name == 'print' else name)
         elif sym.is_local():
             return T('{__l}[{!r}]').format(name)
         elif sym.is_free():
