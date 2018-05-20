@@ -144,7 +144,6 @@ in your original Python code. (onelinerizer will not place this command in for y
 Not Implemented
 ---------------
 * from foo import *
-* from __future__ import division
 
 Open Problems
 -------------

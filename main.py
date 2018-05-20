@@ -305,6 +305,8 @@ class Namespace(ast.NodeVisitor):
         iop = type(tree.op).__name__.lower()
         if iop.startswith('bit'):
             iop = iop[len('bit'):]
+        if 'division' in self.futures and isinstance(tree.op, ast.Div):
+            iop = 'truediv'
         value = self.visit(tree.value)
         assign = assignment_component(
             T('{after}'), target_value,
@@ -317,6 +319,8 @@ class Namespace(ast.NodeVisitor):
         return assign
 
     def visit_BinOp(self, tree):
+        if 'division' in self.futures and isinstance(tree.op, ast.Div):
+            return T('{__operator}.truediv({}, {})').format(self.visit(tree.left), self.visit(tree.right))
         return T('({} {} {})').format(self.visit(tree.left), operator_code[type(tree.op)], self.visit(tree.right))
 
     def visit_BoolOp(self, tree):
