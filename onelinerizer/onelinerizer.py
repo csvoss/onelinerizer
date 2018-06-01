@@ -12,7 +12,6 @@ $ python main.py infile.py outfile.py
 
 import ast
 import symtable
-import traceback
 
 from .template import T
 

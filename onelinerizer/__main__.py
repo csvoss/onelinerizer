@@ -1,5 +1,6 @@
 import argparse
 import sys
+import traceback
 
 from .onelinerizer import onelinerize
 
