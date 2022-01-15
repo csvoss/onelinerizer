@@ -4,9 +4,9 @@ Oneliner-izer
 [![Build Status](https://travis-ci.org/csvoss/onelinerizer.svg?branch=master)](https://travis-ci.org/csvoss/onelinerizer)
 
 
-Convert any Python file into a single line of code which has the same functionality.
+Convert any Python 2 script into a single line of code.
 
-No newlines allowed. No semicolons allowed, either.
+No newlines allowed. No semicolons, either. No silly file I/O tricks, or eval or exec. Just good, old-fashioned λ.
 
 Play with a live demo at [onelinerizer.com](http://www.onelinerizer.com/)! Watch the [presentation at PyCon 2016](https://www.youtube.com/watch?v=DsUxuz_Rt8g), or peruse the [slide deck](https://speakerdeck.com/pycon2016/chelsea-voss-oneliner-izer-an-exercise-in-constrained-coding).
 
