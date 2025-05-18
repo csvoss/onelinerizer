@@ -1,7 +1,7 @@
 Oneliner-izer
 =========
 
-[![Build Status](https://travis-ci.org/csvoss/onelinerizer.svg?branch=master)](https://travis-ci.org/csvoss/onelinerizer)
+[![CI](https://github.com/csvoss/onelinerizer/actions/workflows/ci.yml/badge.svg)](https://github.com/csvoss/onelinerizer/actions/workflows/ci.yml)
 
 
 Convert any Python 2 script into a single line of code.
