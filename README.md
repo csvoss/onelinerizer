@@ -154,6 +154,7 @@ in your original Python code. (onelinerizer will not place this command in for y
 Not Implemented
 ---------------
 * from foo import *
+* assignment to `locals()`
 
 Open Problems
 -------------
